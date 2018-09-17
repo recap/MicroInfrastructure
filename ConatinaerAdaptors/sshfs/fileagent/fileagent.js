@@ -1,6 +1,8 @@
 const express = require('express')
 const bodyParser = require('body-parser')
 const fs = require('fs')
+const jsDav = require('jsDAV/lib/DAV/server')
+const jsDavLock = require('jsDAV/lib/DAV/plugins/locks/fs')
 
 const config = require('./config.json')
 const app = express()
@@ -42,7 +44,12 @@ function dig (sourceDir, destinationDir) {
   })
 }
 
-console.log('Updating file list.')
+jsDav.createServer({
+	node: src,
+	locksBackend: jsDavLock.new('/tmp')
+}, port, '0.0.0.0')
+
+/*console.log('Updating file list.')
 dig(src, dest)
 
 app.use(bodyParser.json())
@@ -53,4 +60,4 @@ app.get(api + '/files/', (req, res) => {
 })
 
 console.log('Starting service on port: ' + port)
-app.listen(port)
+app.listen(port)*/

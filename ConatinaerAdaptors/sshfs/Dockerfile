@@ -1,4 +1,4 @@
-FROM mhart/alpine-node:10
+FROM mhart/alpine-node:8
 RUN apk update && apk add sshfs
 RUN mkdir /data
 RUN mkdir /root/.ssh

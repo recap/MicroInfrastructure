@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mi41564-service
+  labels:
+    name: mi41564
+    #context: docker-k8s-lab
+spec:
+    #type: NodePort
+  ports:
+    # the port that this service should serve on
+      - protocol: TCP
+        port: 8080
+        targetPort: 3002
+  # label keys and values that must match in order to receive traffic for this service
+  selector:
+    name: mi41564
+    #context: docker-k8s-lab
