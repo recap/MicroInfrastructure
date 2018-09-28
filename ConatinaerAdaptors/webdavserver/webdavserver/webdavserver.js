@@ -29,6 +29,11 @@ var authWithToken = (function(config) {
 			next(null, ref);
 			return;
 		}
+		if (!req.headers.authorization) {
+			forbid('No authorization header')
+			return;
+		}
+
 		var token = req.headers.authorization.replace('Bearer ','');
 		if (!token) {
 			forbid('No token');
