@@ -1,30 +1,64 @@
-const express = require('express')
-const bodyParser = require('body-parser')
-const fs = require('fs')
-
+"use strict";
 const config = require('./config.json')
-const app = express()
-const api = '/api/v1'
-const fileDB = []
+const jwt = require('jsonwebtoken')
 
-const jsDav = require('jsDAV/lib/DAV/server')
-const jsDavLock = require('jsDAV/lib/DAV/plugins/locks/fs')
+var jsDAV = require("jsDAV/lib/jsdav");
+//jsDAV.debugMode = true;
 
-jsDav.createServer({
-	node: '/data',
-	locksBackend: jsDavLock.new('/tmp')
-}, config.port, '0.0.0.0')
-
-/*app.use(bodyParser.json())
-
-app.get(api + '/dav/', (req, res) => {
-	res.status(200).send()
+Object.keys(config.Users).forEach((k) => {
+	const v = config.Users[k];
+	v.decodedPublicKey = Buffer.from(v.publicKey, 'base64').toString()
 })
 
-app.copy(api + '/dav/', (req, res) => {
-	res.status(202).send('copy')
-})*/
+
+var authWithToken = (function(config) {
+	var config = config;
+
+	return function(ref, req, res, next) {
+
+		function forbid(msg) {
+			if (msg) {
+				console.log(msg);
+			}
+			var headers = [];
+			res.writeHead(403, headers);
+			res.end();
+		}
+
+		if (!config.enforceTokenAuth) {
+			next(null, ref);
+			return;
+		}
+		var token = req.headers.authorization.replace('Bearer ','');
+		if (!token) {
+			forbid('No token');
+			return;
+		}
+		var preDecoded = jwt.decode(token);
+		if (!preDecoded) {
+			forbid('Error decoding token');
+			return;
+		}
+		var user = preDecoded.email;
+		var cert = config.Users[user].decodedPublicKey
+		if (!user || !config.Users || !config.Users[user] || !cert) {
+			forbid('No user');
+			return;
+		}
+		jwt.verify(token, cert, function(err, decoded) {
+			if (err) {
+				forbid(err);
+				return;
+			}
+			next(null, ref)
+		});
+	}
+})(config);
 
 
-//app.listen(config.port)
+var jsDAV_Locks_Backend_FS = require("jsDAV/lib/DAV/plugins/locks/fs");
 
+jsDAV.createServer({
+    node: "/data",
+    locksBackend: jsDAV_Locks_Backend_FS.new("/tmp"),
+}, 8000, '0.0.0.0', authWithToken);

@@ -6,6 +6,9 @@ spec:
   volumes:
   - name: shared-data
     emptyDir: {}
+  - name: webdav-users
+    secret: webdav-users
+        secretName: webdav-users
   - name: ssh-pro
     secret:
         secretName: ssh-key-pro
@@ -14,7 +17,7 @@ spec:
         secretName: ssh-key-lisa
   containers:
   - name: a1
-    image: process/sshfs:v0.1
+    image: recap/process-sshfs:v0.1
     ports:
         - containerPort: 3001
     env:
@@ -38,7 +41,7 @@ spec:
     command: ["/bin/sh", "-c"]
     args: ["/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub && /bin/cat /ssh/known_hosts > /root/.ssh/known_hosts && /bin/chmod 600 /root/.ssh/id_rsa && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/ 3001"]
   - name: a2
-    image: process/sshfs:v0.1
+    image: recap/process-sshfs:v0.1
     ports:
         - containerPort: 3003
     env:
@@ -62,16 +65,18 @@ spec:
     command: ["/bin/sh", "-c"]
     args: ["/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub && /bin/cat /ssh/known_hosts > /root/.ssh/known_hosts && /bin/chmod 600 /root/.ssh/id_rsa && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/ 3003"]
   - name: u1
-    image: process/webdav:v0.1
+    image: recap/process-webdav:v0.1
     ports:
         - containerPort: 3002
     volumeMounts:
     - name: shared-data
       mountPath: /all-data
+    - name: webdav-users
+      mountPath: /config
     securityContext:
         privileged: true
         capabilities:
             add:
                 - SYS_ADMIN
     command: ["/bin/sh", "-c"]
-    args: ["/bin/mkdir /data/##SSH_HOST_A## /data/##SSH_HOST_B## && echo 'http://localhost:3001 u p\n'  >> /etc/davfs2/secrets && echo 'http://localhost:3003 u p\n' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3001 /data/##SSH_HOST_A## && mount -t davfs http://localhost:3003 /data/##SSH_HOST_B## && cd /root/webdavserver && node webdavserver.js"]
+    args: ["/bin/mkdir /data/##SSH_HOST_A## /data/##SSH_HOST_B## && echo 'http://localhost:3001 u p\n'  >> /etc/davfs2/secrets && echo 'http://localhost:3003 u p\n' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3001 /data/##SSH_HOST_A## && mount -t davfs http://localhost:3003 /data/##SSH_HOST_B## && cat /config/config.json > /root/webdavserver/config.json && cd /root/webdavserver && node webdavserver.js"]
