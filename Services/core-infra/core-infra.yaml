@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+    name: core-infra
+    namespace: process-core
+    labels:
+        app: core-infra
+spec:
+    selector:
+        app: core-infra
+    ports:
+    - port: 4200
+      targetPort: 4200
+      nodePort: 30002
+    type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-infra-deployment
+  namespace: process-core
+  labels:
+      name: core-infra
+spec:
+  selector:
+    matchLabels:
+      app: core-infra
+  template:
+    metadata:
+      labels:
+        app: core-infra
+    spec:
+      nodeSelector:
+        type: lite
+      hostname: infra
+      volumes:
+      - name: k8s-config
+        secret:
+            secretName: k8s-config
+      containers:
+      - name: web
+        image: recap/process-core-infra:v0.1
+        ports:
+            - containerPort: 4200
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c"]
+        args: ["node app.js -q mq -m mongo"]
+      - name: kubectl
+        image: roffe/kubectl
+        volumeMounts:
+        - name: k8s-config
+          mountPath: /k8s-config
+          readOnly: true
+        command:
+        - kubectl
+        - --kubeconfig
+        - /k8s-config/config
+        - proxy
+        - --port=8080
