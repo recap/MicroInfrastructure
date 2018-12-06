@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: process-core
+spec:
+  selector:
+    name: core-mongo
+  clusterIP: None
+  ports:
+  - port: 27017
+    targetPort: 27017
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: core-mongo
+  namespace: process-core
+  labels:
+      name: core-mongo
+spec:
+    nodeSelector:
+      type: lite
+    hostname: mongo
+    containers:
+    - name: core-mongo
+      image: mongo
+      env:
+      - name: MONGO_INITDB_ROOT_USERNAME
+        valueFrom:
+            secretKeyRef:
+                name: mongodb-user-pass
+                key: username
+      - name: MONGO_INITDB_ROOT_PASSWORD
+        valueFrom:
+            secretKeyRef:
+                name: mongodb-user-pass
+                key: password
+      ports:
+          - containerPort: 27017
+      lifecycle:
+        postStart:
+          exec:
+              #create user for database
+              command: ["/bin/sh", "-c", "sleep 5 && /bin/sh -c 'echo ZGIuY3JlYXRlVXNlcih7dXNlcjogImNvcmUtaW5mcmEiLCBwd2Q6ICJjb3JlLWluZnJhIiwgcm9sZXM6WyJyZWFkV3JpdGUiXX0pOwo= | base64 -d > /root/bootdb.js' && /bin/sh -c 'mongo -u ${MONGO_INITDB_ROOT_USERNAME} -p ${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin process /root/bootdb.js'"]
