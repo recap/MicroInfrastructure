@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mq
+  namespace: process-core
+spec:
+  selector:
+    name: core-mq
+  clusterIP: None
+  ports:
+  - port: 5672
+    targetPort: 5672
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: core-mq
+  namespace: process-core
+  labels:
+      name: core-mq
+spec:
+    nodeSelector:
+      type: lite
+    hostname: mq
+    containers:
+    - name: core-mq
+      image: rabbitmq:3 
+      ports:
+          - containerPort: 5672
