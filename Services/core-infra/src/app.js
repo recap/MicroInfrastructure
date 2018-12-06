@@ -19,8 +19,8 @@ const ssh = require('ssh2').Client
 const keypair = require('keypair')
 const forge = require('node-forge')
 const dockerNames = require('docker-names')
+const md5 = require('md5')
 const eventEmitter = new events.EventEmitter()
-
 
 const cmdOptions = [
 	{ name: 'amqp', alias: 'q', type: String},
@@ -52,6 +52,7 @@ const kubeapi = k8s.api({
 	endpoint: 'http://127.0.0.1:8080',
 	version: '/api/v1'
 })
+
 const kubeext = k8s.api({
 	endpoint: 'http://127.0.0.1:8080',
 	version: '/apis/apps/v1'
@@ -101,8 +102,51 @@ function createSecret(keys) {
 	}
 }
 
+function createUIJWTContainer(details) { 
+	let cmd = ""
+
+	const users = encodeBase64(JSON.stringify(details.users))
+
+	details.adaptors.map(a => {
+		const host = a.env.filter(e => {
+			return e.name == "SSH_HOST"
+		})
+		if (isEmpty(host)) return []
+		return {
+			host: host[0].value,
+			port: a.ports[0].containerPort
+		}
+	}).forEach(a => {
+		if (isEmpty(a)) return	
+		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+	})
+
+	cmd += " cd /root/webdavserver && node webdavserver-jwt.js"
+	return {
+				"name": dockerNames.getRandomName().replace('_','-'),
+				"image": "recap/process-webdav:v0.3",
+				"ports": [
+					{
+						"containerPort": 8001
+					}
+				],
+				"env": [
+					{ "name": "JWTUSERS", "value": users }
+				],
+				"securityContext": {
+					"privileged": true,
+						"capabilities": {
+							"add": [ "SYS_ADMIN" ]
+						}
+				},
+				"command": ["/bin/sh", "-c" ],
+				"args": [cmd]
+			}
+}
+
 function createUIContainer(details) { 
 	let cmd = ""
+	const htpass = details.user + ":jsdav:" + md5(details.user + ":jsdav:" + details.pass)
 	details.adaptors.map(a => {
 		const host = a.env.filter(e => {
 			return e.name == "SSH_HOST"
@@ -112,22 +156,20 @@ function createUIContainer(details) {
 			port: a.ports[0].containerPort
 		}
 	}).forEach(a => {
-		cmd += " /bin/mkdir /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+		cmd += " echo $HTDIGEST > /assets/htusers && /bin/mkdir /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
 
-	cmd += " cd /root/webdavserver && node webdavserver.js"
+	cmd += " cd /root/webdavserver && node webdavserver-ht.js"
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-webdav:v0.2",
+				"image": "recap/process-webdav:v0.3",
 				"ports": [
 					{
 						"containerPort": 8000
 					}
 				],
 				"env": [
-					{ "name": "AUTH_TYPE", "value": "Digest" },
-					{ "name": "USERNAME", "value": "user001" },
-					{ "name": "PASSWORD", "value": "pass001" }
+					{ "name": "HTDIGEST", "value": htpass }
 				],
 				"securityContext": {
 					"privileged": true,
@@ -220,11 +262,12 @@ function createDeployment(details, volumes, containers) {
 }
 
 function createService(details) {
+	const name = (details.type == "webdav") ? details.name + '-ht' : details.name + '-jwt'
 	return {
 		kind: "Service",
 		apiVersion: "v1",
 		metadata: {
-			name: details.name,
+			name: name,
 			namespace: details.namespace,
 			labels: {
 				app: details.name,
@@ -271,11 +314,6 @@ function createPod(details, containers) {
 		}
 	}
 }
-
-//kubeapi.post('namespaces', ns, (err, r) => {
-//	if (err) throw err
-//	console.log("seems ok")
-//})
 
 app.use(bodyParser.urlencoded({extended: true}))
 app.use(bodyParser.json())
@@ -345,7 +383,6 @@ app.get(api + '/test', checkToken, async (req, res) => {
 	res.status(200).send(req.user)
 })
 
-
 app.put(api + '/user', checkAdminToken, async(req, res) => {
 	
 	const user = req.body
@@ -387,10 +424,6 @@ app.put(api + '/user', checkAdminToken, async(req, res) => {
 			res.status(500).send()
 		}
 	})
-})
-
-app.post(api + '/namespace', checkToken, async(req, res) => {
-
 })
 
 function checkSshConnection(adaptor) {
@@ -445,7 +478,6 @@ async function getNamespaceServices(ns) {
 
 function filterServices(services) {
 	return services.map(s => {
-		console.log(s)
 		return {
 			type:  s.metadata.labels.type,
 			name:  s.metadata.name,
@@ -459,6 +491,19 @@ app.get(api + '/infrastructure', checkToken, async(req, res) => {
 	const services = await getNamespaceServices(req.user.namespace)
 	const info = filterServices(services.items)
 	res.status(200).send(info)
+})
+
+app.delete(api + '/infrastructure/:id', checkToken, async(req, res) => {
+	const id = req.params.id
+	kubeext.delete('namespaces/' + req.user.namespace + '/deployments/' + id, (err, res) => {
+		if (err) console.log(err)
+	})
+	kubeapi.delete('namespaces/' + req.user.namespace + '/services/' + id, (err, res) => {
+		if (err) console.log(err)
+	})
+
+	res.status(200).send()
+
 })
 
 app.post(api + '/infrastructure', checkToken, async(req, res) => {
@@ -491,9 +536,12 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	const containers = await Promise.all(promises)
 	// convert ui descriptions to k8s container list
 	const uiPromises = infra.ui.map(async(ui, index) => {
+		const uicnt = []
 		if (ui.type == "webdav") {
 			const u = createUIContainer({
-				adaptors: containers
+				adaptors: containers,
+				user: ui.user,
+				pass: ui.pass
 			})
 			const service = createService({
 				name: infra.name,
@@ -501,9 +549,25 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				targetPort: 8000,
 				type: 'webdav'
 			})
-			containers.push(u)
+			uicnt.push(u)
 			services.push(service)
 		}
+		if (ui.type == "webdav-jwt") {
+			const u = createUIJWTContainer({
+				adaptors: containers,
+				users: ui.users
+			})
+			const service = createService({
+				name: infra.name,
+				namespace: req.user.namespace,
+				targetPort: 8001,
+				type: 'webdav-jwt'
+			})
+			uicnt.push(u)
+			services.push(service)
+		}
+
+		uicnt.forEach(c => containers.push(c))
 	})
 
 	const volumes = createVolume()
@@ -518,7 +582,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		await kubeext.post('namespaces/' + req.user.namespace + '/deployments', deployment)
 		// create k8s services
 		services.forEach(async s => {
-			kubeapi.delete('namespaces/' + req.user.namespace + '/services/' + infra.name, (err, res) => {
+			kubeapi.delete('namespaces/' + req.user.namespace + '/services/' + s.metadata.name, (err, res) => {
 				if (err) console.log(err)
 			})
 			await kubeapi.post('namespaces/' + req.user.namespace + '/services', s)
@@ -539,9 +603,9 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	const yamlFile = 'deployments/' + req.user.namespace + "." + infra.name + '.yaml'
 	fs.writeFileSync(yamlFile, yml, 'utf-8')
 	
-	const serviceList = await getNamespaceServices(req.user.namespace)
-	const info = filterServices(serviceList.items).filter(i => i.name == infra.name)
-	res.status(200).send(info)
+	//const serviceList = await getNamespaceServices(req.user.namespace)
+	//const info = filterServices(serviceList.items).filter(i => i.name == infra.name)
+	res.status(200).send()
 })
 
 function deploy(desc) {
@@ -565,13 +629,6 @@ async function checkMongo() {
 	db.on('error', console.error.bind(console, "conn error"))
 	db.once('open', () => {
 		console.log('connected')
-		//const r = new Users({name: "Alfred"})
-		//r.save()
-		//console.log(r.name)
-		//Users.find({name: /^Alfred/}, function(err, r) {
-		//	if (err) throw err
-		//	console.log(r)
-		//})
 	})
 }
 

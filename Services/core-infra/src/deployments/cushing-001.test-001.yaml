@@ -1,7 +1,7 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: test-001
+  name: test-001-ht
   namespace: cushing-001
   labels:
     app: test-001
@@ -12,6 +12,22 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: test-001-jwt
+  namespace: cushing-001
+  labels:
+    app: test-001
+    type: webdav-jwt
+spec:
+  selector:
+    app: test-001
+  ports:
+    - port: 8001
+      targetPort: 8001
   type: NodePort
 ---
 kind: Deployment
@@ -39,7 +55,7 @@ spec:
           emptyDir:
             {}
       containers:
-        - name: charming-murdock
+        - name: modest-noyce
           image: recap/process-sshfs:v0.1
           ports:
             - containerPort: 3001
@@ -73,7 +89,7 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: peaceful-mestorf
+        - name: ecstatic-banzai
           image: recap/process-sshfs:v0.1
           ports:
             - containerPort: 3002
@@ -107,17 +123,13 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: stupefied-turing
-          image: recap/process-webdav:v0.2
+        - name: infallible-brown
+          image: recap/process-webdav:v0.3
           ports:
             - containerPort: 8000
           env:
-            - name: AUTH_TYPE
-              value: Digest
-            - name: USERNAME
-              value: user001
-            - name: PASSWORD
-              value: pass001
+            - name: HTDIGEST
+              value: user:jsdav:98896c65e2912eb180e87a1c1955e16a
           securityContext:
             privileged: true
             capabilities:
@@ -127,13 +139,38 @@ spec:
             - /bin/sh
             - -c
           args:
-            - " /bin/mkdir /data/lisa.surfsara.nl && echo 'http://localhost:3001
-              u p' >> /etc/davfs2/secrets && mount -t davfs
-              http://localhost:3001 /data/lisa.surfsara.nl &&  /bin/mkdir
-              /data/pro.cyfronet.pl && echo 'http://localhost:3002 u p' >>
-              /etc/davfs2/secrets && mount -t davfs http://localhost:3002
+            - " echo $HTDIGEST > /assets/htusers && /bin/mkdir
+              /data/lisa.surfsara.nl && echo 'http://localhost:3001 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3001
+              /data/lisa.surfsara.nl &&  echo $HTDIGEST > /assets/htusers &&
+              /bin/mkdir /data/pro.cyfronet.pl && echo 'http://localhost:3002 u
+              p' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3002
               /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
-              webdavserver.js"
+              webdavserver-ht.js"
+        - name: elegant-shockley
+          image: recap/process-webdav:v0.3
+          ports:
+            - containerPort: 8001
+          env:
+            - name: JWTUSERS
+              value: eyJyLnMuY3VzaGluZ0B1dmEubmwiOnsibmFtZSI6IlJlZ2dpZSBDdXNoaW5nIiwicHVibGljS2V5IjoiTFMwdExTMUNSVWRKVGlCUVZVSk1TVU1nUzBWWkxTMHRMUzBLVFVsSlFrbHFRVTVDWjJ0eGFHdHBSemwzTUVKQlVVVkdRVUZQUTBGUk9FRk5TVWxDUTJkTFEwRlJSVUZ2TmtweFMzcGFhMFpOUTA1d1VIbEZNakkwU1FwS1MwdHdNSEZIV0VscGNEUm9ialZ5Tnl0V1QwNUplSEZXTTAxSmRrNUNiRE5tY0ZKTVZEaGFaek5pWlVsWFNVcFJhbGhaYldacGEwYzJhVTl3VjJaTUNrWnVNbTl2ZG0xTFlYVnlOR3c1V0dJMWIwdFhiM0kxZUVoQmNEaHNiVFJXTVRseGVrTmpTbk5UTUVocGNuaFdjRXgyVWpKNE9ITTJWbVIwUzBab1IwY0tlakppVlhCU2FsWkhXREpvWmtkdWRITlJXV3h2Y1VkSFEweEJSVlJuV205VlNrRjZSV3BMYkdOMFREaHBVRGx4TTBRelduZ3pTVGxPVG5WWk1VUnlVd3BxV0dsM1pVaHVOazF5UzBKVU1FTkVkV2szUmxSd2EzVmFTRTl6TUdOdFlYaGlSMEpoU0VvMWFtTnRRbkZDWnpKbVRFdDJUV2xsUVdGSWVsZzRWamM1Q25GU1NpOTBUMDlCYTNOQmRIbzVUelJpZG1KV1NFWnNRWFptZFhWR1QyRjBVM3BzUzB3dk9IVkhSblp1SzBGSmVXOTFlRGM0UmpGQkwyRk5XbHAyUVhRS05GRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VGVkNURWxESUV0RldTMHRMUzB0Q2c9PSJ9fQ==
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir
+              /data/lisa.surfsara.nl && echo 'http://localhost:3001 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3001
+              /data/lisa.surfsara.nl &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir /data/pro.cyfronet.pl && echo
+              'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3002 /data/pro.cyfronet.pl &&  cd
+              /root/webdavserver && node webdavserver-jwt.js"
 url: http://127.0.0.1:8080/apis/apps/v1/namespaces/cushing-001/deployments
 headers:
   Content-Type: application/json
