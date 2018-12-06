@@ -21,7 +21,8 @@
     "express": "^4.16.3",
     "fs": "0.0.1-security",
     "http": "0.0.0",
-    "jsDAV": "git+https://git@github.com/recap/jsDAV",
+    "jsDAV": "^0.3.4",
+    "jsonwebtoken": "^8.4.0",
     "md5-file": "^4.0.0",
     "stats": "^1.0.0"
   }
