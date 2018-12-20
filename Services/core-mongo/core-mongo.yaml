@@ -6,10 +6,27 @@ metadata:
 spec:
   selector:
     name: core-mongo
-  clusterIP: None
+    #clusterIP: None
   ports:
   - port: 27017
     targetPort: 27017
+    #nodePort: 30001
+    #  type: NodePort
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pv-claim
+  namespace: process-core
+  labels:
+    app: core-mongo
+spec:
+  storageClassName: rook-ceph-block
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: Pod
@@ -19,27 +36,32 @@ metadata:
   labels:
       name: core-mongo
 spec:
-    nodeSelector:
-      type: lite
     hostname: mongo
+    nodeSelector:
+        type: core
+    volumes:
+    - name: mongo-persistent-storage
+      persistentVolumeClaim:
+        claimName: mongo-pv-claim
     containers:
     - name: core-mongo
       image: mongo
+      volumeMounts:
+        - name: mongo-persistent-storage
+          mountPath: /data
       env:
       - name: MONGO_INITDB_ROOT_USERNAME
         valueFrom:
             secretKeyRef:
-                name: mongodb-user-pass
-                key: username
+                name: vault
+                key: db-root-user
       - name: MONGO_INITDB_ROOT_PASSWORD
         valueFrom:
             secretKeyRef:
-                name: mongodb-user-pass
-                key: password
+                name: vault
+                key: db-root-pass
       ports:
           - containerPort: 27017
-      lifecycle:
-        postStart:
-          exec:
-              #create user for database
-              command: ["/bin/sh", "-c", "sleep 5 && /bin/sh -c 'echo ZGIuY3JlYXRlVXNlcih7dXNlcjogImNvcmUtaW5mcmEiLCBwd2Q6ICJjb3JlLWluZnJhIiwgcm9sZXM6WyJyZWFkV3JpdGUiXX0pOwo= | base64 -d > /root/bootdb.js' && /bin/sh -c 'mongo -u ${MONGO_INITDB_ROOT_USERNAME} -p ${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin process /root/bootdb.js'"]
+      command:
+          - mongod
+          - --bind_ip_all

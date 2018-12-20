@@ -3,11 +3,7 @@
 build:
 	docker build -t recap/process-core-infra:v0.1 .
 
-run:
-	-kubectl delete -f backend.yaml
-	kubectl create -f backend.yaml
-
-run-dev: build
+run: build
 	docker run -it recap/process-core-infra:v0.1 /bin/sh
 
 push: build

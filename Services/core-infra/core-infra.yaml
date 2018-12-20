@@ -11,7 +11,7 @@ spec:
     ports:
     - port: 4200
       targetPort: 4200
-      nodePort: 30002
+      nodePort: 30000
     type: NodePort
 ---
 apiVersion: apps/v1
@@ -31,29 +31,39 @@ spec:
         app: core-infra
     spec:
       nodeSelector:
-        type: lite
+        type: core
       hostname: infra
       volumes:
-      - name: k8s-config
+      - name: vault
         secret:
-            secretName: k8s-config
+            secretName: vault
       containers:
-      - name: web
-        image: recap/process-core-infra:v0.1
-        ports:
-            - containerPort: 4200
-        imagePullPolicy: Always
-        command: ["/bin/sh", "-c"]
-        args: ["node app.js -q mq -m mongo"]
       - name: kubectl
         image: roffe/kubectl
         volumeMounts:
-        - name: k8s-config
-          mountPath: /k8s-config
+        - name: vault
+          mountPath: /assets
           readOnly: true
         command:
         - kubectl
         - --kubeconfig
-        - /k8s-config/config
+        - /assets/config
         - proxy
         - --port=8080
+      - name: web
+        image: recap/process-core-infra:v0.1
+        volumeMounts:
+        - name: vault
+          mountPath: /assets
+          readOnly: true
+        env:
+          - name: DBPASS
+            valueFrom:
+                secretKeyRef:
+                    name: vault
+                    key: dbpass
+        ports:
+            - containerPort: 4200
+        imagePullPolicy: Always
+        command: ["/bin/sh", "-c"]
+        args: ["sleep 10 && node app.js -m mongo -k /assets/privateKey.txt -c /assets/publicKey.txt --dbpass $DBPASS -h data01.process-project.eu"]

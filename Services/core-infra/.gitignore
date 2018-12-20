@@ -18,6 +18,7 @@ test-data
 *.key
 *.cert
 *.txt
+*vault*
 
 # Runtime data
 pids

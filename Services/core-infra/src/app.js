@@ -4,9 +4,10 @@ const cmdArgs = require('command-line-args')
 const express = require('express')
 const crypto = require('crypto')
 const app = express()
-const server = require('http').createServer(app)
+const http = require('http')
+const https = require('https')
 const bodyParser = require('body-parser')
-const io = require('socket.io')(server)
+//const io = require('socket.io')(server)
 const request = require('request')
 const rp = require('request-promise')
 const events = require('events')
@@ -27,6 +28,7 @@ const cmdOptions = [
 	{ name: 'mongo', alias: 'm', type: String},
 	{ name: 'privateKey', alias: 'k', type: String},
 	{ name: 'publicKey', alias: 'c', type: String},
+	{ name: 'cert', alias: 's', type: String},
 	{ name: 'port', alias: 'p', type: Number},
 	{ name: 'dbpass', type: String},
 	{ name: 'host', alias: 'h', type: String}
@@ -37,6 +39,23 @@ const options = cmdArgs(cmdOptions)
 // load keys
 const privateKey = fs.readFileSync(options.privateKey, "utf-8")
 const publicKey = fs.readFileSync(options.publicKey, "utf-8")
+const cert = fs.readFileSync(options.cert, "utf-8")
+const credentials = {
+	key: privateKey,
+	cert: cert
+}
+const httpsServer = https.createServer(credentials, app)
+const httpServer = http.createServer(app)
+
+app.use(bodyParser.urlencoded({extended: true}))
+app.use(bodyParser.json())
+app.use(express.static('./'))
+app.get('/', function(req, res,next) {
+    res.sendFile(__dirname + '/index.html')
+})
+
+const api = '/api/v1'
+
 
 // check mongo
 const url = "mongodb://core-infra:" + options.dbpass + "@" + options.mongo + ":27017/process"
@@ -139,6 +158,26 @@ function createUIJWTContainer(details) {
 							"add": [ "SYS_ADMIN" ]
 						}
 				},
+				"command": ["/bin/sh", "-c" ],
+				"args": [cmd]
+			}
+}
+
+function createQueryContainer(details) {
+
+	let cmd = "cd /app/ && node app.js --config $APPCONFIG -c $PUBLICKEY"
+	return {
+				"name": dockerNames.getRandomName().replace('_','-'),
+				"image": "recap/process-query:v0.1",
+				"ports": [
+					{
+						"containerPort": 4300
+					}
+				],
+				"env": [
+					{ "name": "APPCONFIG", "value": details.config },
+					{ "name": "PUBLICKEY", "value": details.publicKey}
+				],
 				"command": ["/bin/sh", "-c" ],
 				"args": [cmd]
 			}
@@ -315,14 +354,6 @@ function createPod(details, containers) {
 	}
 }
 
-app.use(bodyParser.urlencoded({extended: true}))
-app.use(bodyParser.json())
-app.use(express.static('./'))
-app.get('/', function(req, res,next) {
-    res.sendFile(__dirname + '/index.html')
-})
-
-const api = '/api/v1'
 
 function generateToken(user, namespace) {
 	return jwt.sign({
@@ -653,7 +684,7 @@ async function startMq() {
 	})
 }
 
-io.on('connection', function(client) {
+/*io.on('connection', function(client) {
     console.log('Client connected...')
 
     client.on('join', function(data) {
@@ -666,7 +697,7 @@ io.on('connection', function(client) {
 		console.log(content + " Signiture: " + parts[1])
 		client.emit('audit_log', content)
 	})
-})
+})*/
 
 function generateSshKeys(user) {
 	const pair = keypair();
@@ -683,5 +714,7 @@ function generateSshKeys(user) {
 //const myToken = generateToken("admin")
 const myToken = generateToken("r.s.cushing@uva.nl", "cushing-001")
 console.log(myToken)
+console.log("Starting secure server...")
+httpsServer.listen(options.port || 4243)
 console.log("Starting server...")
-server.listen(options.port || 4200)
+httpServer.listen(options.port || 4200)

@@ -7,5 +7,5 @@ push: build
 	docker push recap/process-sshfs
 
 run: build
-	docker run -it recap/process-sshfs:v0.1 sh
+	docker run -it --privileged recap/process-sshfs:v0.1 sh
 
