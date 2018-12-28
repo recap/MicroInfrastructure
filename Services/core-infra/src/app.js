@@ -144,6 +144,7 @@ async function createUIJWTContainer(details) {
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-webdav:v0.3",
+				"imagePullPolicy": "Always",
 				"ports": [
 					{
 						"containerPort": 8001
@@ -170,6 +171,7 @@ async function createQueryContainer(details) {
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-core-query:v0.1",
+				"imagePullPolicy": "Always",
 				"ports": [
 					{
 						"containerPort": 4300
@@ -203,6 +205,7 @@ async function createUIContainer(details) {
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-webdav:v0.3",
+				"imagePullPolicy": "Always",
 				"ports": [
 					{
 						"containerPort": 8000
@@ -226,6 +229,7 @@ function createContainer(details) {
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-sshfs:v0.1",
+				"imagePullPolicy": "Always",
 				"ports": [
 					{
 						"containerPort": details.containerPort
