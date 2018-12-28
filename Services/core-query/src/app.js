@@ -94,6 +94,7 @@ function isEmpty(arr) {
 }
 
 function checkToken(req, res, next) {
+	next()
 	const token = req.headers['x-access-token']
 	if (!token) {
 		res.status(403).send()
@@ -129,29 +130,87 @@ function checkAdminToken(req, res, next) {
 	})
 }
 
+// my dump retry function
+async function retry(fn, times, interval) {
+	return new Promise((resolve, reject) => {
+		let cnt = 0
+		let i = setInterval(async function() {
+			cnt = cnt + 1
+			if (cnt > times) {
+				console.log("Rejecting " + cnt)
+				clearInterval(i)
+				reject(false)
+				return
+			}
+			try {
+				await fn()
+				clearInterval(i)
+				resolve(true)
+			} catch(err) {
+				console.log(err.message)
+			}
+		}, interval)
+	})
+}
+
+function isHiddenFile(filename) {
+	if (!filename) return true
+	return path.basename(filename).startsWith('.')
+}
+
+async function digg(p, host, client) {
+
+	const dirItems = await client.getDirectoryContents(p)
+	const dirs = dirItems
+		.filter(i => i.type == 'directory')
+		.map(i => i.filename)
+	dirs.forEach(d => {
+		console.log("Digging " + d)
+		digg(d, host, client)
+	})
+	dirItems.filter(i => {
+			return ( (i.type == 'file') && !(isHiddenFile(i.filename)) )
+		})
+		.forEach(f => {
+			const base = path.basename(f.filename)
+			if (!xedni[base]) {
+				f.endpoints = [host]
+				xedni[base] = f	
+			} else {
+				xedni[base].endpoints.push(host)
+			}
+			console.log(base)
+		})
+}
+
 // load registry
 async function loadRegistry() {
-	function isHiddenFile(filename) {
-		return path.basename(filename).startsWith('.')
-	}
 
 	config.forEach(async l => {
-		console.log("Querying " + l.name)
-		const url = 'http://' + l.host + ":" + l.port
-		const client = createClient(url, {})
-		const dirItems = await client.getDirectoryContents("/")
-		index[l.name] = dirItems
-		dirItems
-			.filter(i => {
-				return ( (i.type == 'file') && !(isHiddenFile(i.filename)) )
-			})
-			.forEach(f => {
-				const base = path.basename(f.filename)
-				f.details = l
-				xedni[base] = f	
-				console.log(base)
-			})
-			
+		retry(async function() {
+			try{
+				console.log("Querying " + l.name)
+				const url = 'http://' + l.host + ":" + l.port
+				const client = createClient(url, {})
+				await digg('/', l, client)
+				/*const dirItems = await client.getDirectoryContents("/")
+				console.log("Items: " + JSON.stringify(dirItems))
+				index[l.name] = dirItems
+				dirItems
+					.filter(i => {
+						return ( (i.type == 'file') && !(isHiddenFile(i.filename)) )
+						//return ( !(isHiddenFile(i.filename)) )
+					})
+					.forEach(f => {
+						const base = path.basename(f.filename)
+						f.details = l
+						xedni[base] = f	
+						console.log(base)
+					})*/
+			} catch(err) {
+				throw(err)
+			}
+		}, 20, 5000)
 	})
 }
 

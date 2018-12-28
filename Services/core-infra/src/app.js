@@ -121,7 +121,7 @@ function createSecret(keys) {
 	}
 }
 
-function createUIJWTContainer(details) { 
+async function createUIJWTContainer(details) { 
 	let cmd = ""
 
 	const users = encodeBase64(JSON.stringify(details.users))
@@ -163,19 +163,20 @@ function createUIJWTContainer(details) {
 			}
 }
 
-function createQueryContainer(details) {
+async function createQueryContainer(details) {
 
-	let cmd = "cd /app/ && node app.js --config $APPCONFIG -c $PUBLICKEY"
+	let cmd = "echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002"
+	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-query:v0.1",
+				"image": "recap/process-core-query:v0.1",
 				"ports": [
 					{
 						"containerPort": 4300
 					}
 				],
 				"env": [
-					{ "name": "APPCONFIG", "value": details.config },
+					{ "name": "APPCONFIG", "value": appConfig },
 					{ "name": "PUBLICKEY", "value": details.publicKey}
 				],
 				"command": ["/bin/sh", "-c" ],
@@ -183,7 +184,7 @@ function createQueryContainer(details) {
 			}
 }
 
-function createUIContainer(details) { 
+async function createUIContainer(details) { 
 	let cmd = ""
 	const htpass = details.user + ":jsdav:" + md5(details.user + ":jsdav:" + details.pass)
 	details.adaptors.map(a => {
@@ -301,21 +302,21 @@ function createDeployment(details, volumes, containers) {
 }
 
 function createService(details) {
-	const name = (details.type == "webdav") ? details.name + '-ht' : details.name + '-jwt'
+	//const name = (details.type == "webdav") ? details.name + '-ht' : details.name + '-jwt'
 	return {
 		kind: "Service",
 		apiVersion: "v1",
 		metadata: {
-			name: name,
+			name: details.name,
 			namespace: details.namespace,
 			labels: {
-				app: details.name,
+				app: details.iname,
 				type: details.type
 			}
 		},
 		spec: {
 			selector: {
-				app: details.name
+				app: details.iname
 			},
 			ports: [
 				{
@@ -542,6 +543,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	let cntPort = 3001
 	const response = {}
 	const services = []
+	const adaptorDescriptions = []
 	// convert description to k8s container list
 	const promises = infra.adaptors.filter(adaptor => {
 		return adaptor.type == "sshfs"
@@ -562,20 +564,29 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			sshUser: adaptor.user,
 			sshPath: adaptor.path
 		})
-		return container;
+		const desc = {
+			name: adaptor.host,
+			host: 'localhost',
+			port: cntPort + index,
+			type: 'webdav',
+			mount: adaptor.path
+		}
+		adaptorDescriptions.push(desc)
+		return container
 	})
 	const containers = await Promise.all(promises)
 	// convert ui descriptions to k8s container list
 	const uiPromises = infra.ui.map(async(ui, index) => {
 		const uicnt = []
 		if (ui.type == "webdav") {
-			const u = createUIContainer({
+			const u = await createUIContainer({
 				adaptors: containers,
 				user: ui.user,
 				pass: ui.pass
 			})
 			const service = createService({
-				name: infra.name,
+				name: infra.name + '-ht',
+				iname: infra.name,
 				namespace: req.user.namespace,
 				targetPort: 8000,
 				type: 'webdav'
@@ -584,15 +595,31 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			services.push(service)
 		}
 		if (ui.type == "webdav-jwt") {
-			const u = createUIJWTContainer({
+			const u = await createUIJWTContainer({
 				adaptors: containers,
 				users: ui.users
 			})
 			const service = createService({
-				name: infra.name,
+				name: infra.name + '-jwt',
+				iname: infra.name,
 				namespace: req.user.namespace,
 				targetPort: 8001,
 				type: 'webdav-jwt'
+			})
+			uicnt.push(u)
+			services.push(service)
+		}
+		if (ui.type == "query") {
+			const u = await createQueryContainer({
+				descriptions: adaptorDescriptions,
+				publicKey: publicKey
+			})
+			const service = createService({
+				name: infra.name + '-query',
+				iname: infra.name,
+				namespace: req.user.namespace,
+				targetPort: 8002,
+				type: 'query'
 			})
 			uicnt.push(u)
 			services.push(service)
@@ -601,13 +628,16 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		uicnt.forEach(c => containers.push(c))
 	})
 
+	// block wait for promises to be resolved
+	await Promise.all(uiPromises)
+
 	const volumes = createVolume()
 	const deployment = createDeployment({
 		name: infra.name,
 		namespace: req.user.namespace
 	}, volumes, containers)
 
-	try{
+	/*try{
 		// create k8s deployment
 		await kubeext.delete('namespaces/' + req.user.namespace + '/deployments', deployment)
 		await kubeext.post('namespaces/' + req.user.namespace + '/deployments', deployment)
@@ -620,7 +650,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		})
 	} catch (err) {
 		console.log("Error deploying: " + err)
-	}
+	}*/
 
 	let yml = ''
 
@@ -630,6 +660,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	})
 
 	yml += YAML.stringify(deployment)
+	console.log(yml)
 
 	const yamlFile = 'deployments/' + req.user.namespace + "." + infra.name + '.yaml'
 	fs.writeFileSync(yamlFile, yml, 'utf-8')

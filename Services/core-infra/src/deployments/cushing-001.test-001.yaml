@@ -1,6 +1,22 @@
 kind: Service
 apiVersion: v1
 metadata:
+  name: test-001-query
+  namespace: cushing-001
+  labels:
+    app: test-001
+    type: query
+spec:
+  selector:
+    app: test-001
+  ports:
+    - port: 8002
+      targetPort: 8002
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
   name: test-001-ht
   namespace: cushing-001
   labels:
@@ -55,7 +71,7 @@ spec:
           emptyDir:
             {}
       containers:
-        - name: awesome-gagarin
+        - name: focused-ishizaka
           image: recap/process-sshfs:v0.1
           ports:
             - containerPort: 3001
@@ -89,7 +105,7 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: relaxed-curie
+        - name: infallible-bartik
           image: recap/process-sshfs:v0.1
           ports:
             - containerPort: 3002
@@ -123,7 +139,32 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: trusting-tharp
+        - name: serene-chaplygin
+          image: recap/process-core-query:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4300
+          env:
+            - name: APPCONFIG
+              value: W3sibmFtZSI6Imxpc2Euc3VyZnNhcmEubmwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMSwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25mcy9zY3JhdGNoL2N1c2hpbmcifSx7Im5hbWUiOiJwcm8uY3lmcm9uZXQucGwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMiwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25ldC9hcmNoaXZlL2dyb3Vwcy9wbGdncHJvY2VzcyJ9XQ==
+            - name: PUBLICKEY
+              value: |
+                -----BEGIN PUBLIC KEY-----
+                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6JqKzZkFMCNpPyE224I
+                JKKp0qGXIip4hn5r7+VONIxqV3MIvNBl3fpRLT8Zg3beIWIJQjXYmfikG6iOpWfL
+                Fn2oovmKaur4l9Xb5oKWor5xHAp8lm4V19qzCcJsS0HirxVpLvR2x8s6VdtKFhGG
+                z2bUpRjVGX2hfGntsQYloqGGCLAETgZoUJAzEjKlctL8iP9q3D3Zx3I9NNuY1DrS
+                jXiweHn6MrKBT0CDui7FTpkuZHOs0cmaxbGBaHJ5jcmBqBg2fLKvMieAaHzX8V79
+                qRJ/tOOAksAtz9O4bvbVHFlAvfuuFOatSzlKL/8uGFvn+AIyoux78F1A/aMZZvAt
+                4QIDAQAB
+                -----END PUBLIC KEY-----
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
+              --config $APPCONFIG -c /tmp/publicKey.txt -p 8002
+        - name: reverent-hypatia
           image: recap/process-webdav:v0.3
           ports:
             - containerPort: 8000
@@ -147,7 +188,7 @@ spec:
               p' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3002
               /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
               webdavserver-ht.js"
-        - name: gracious-driscoll
+        - name: hardcore-bartik
           image: recap/process-webdav:v0.3
           ports:
             - containerPort: 8001
@@ -171,7 +212,3 @@ spec:
               'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
               davfs http://localhost:3002 /data/pro.cyfronet.pl &&  cd
               /root/webdavserver && node webdavserver-jwt.js"
-url: http://127.0.0.1:8080/apis/apps/v1/namespaces/cushing-001/deployments
-headers:
-  Content-Type: application/json
-strictSSL: true
