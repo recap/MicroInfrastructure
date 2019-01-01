@@ -305,6 +305,7 @@ app.get(api + '/test-service', async (req, res) => {
 app.get(api + '/list', checkToken, async (req, res) => {
 	res.status(200).send(xedni)
 })
+
 app.get(api + '/find/:id', checkToken, async (req, res) => {
 	const filename = req.params.id
 	const record = xedni[filename]
@@ -313,6 +314,40 @@ app.get(api + '/find/:id', checkToken, async (req, res) => {
 		return
 	}
 	res.status(200).send(record)
+})
+
+app.post(api + '/dummywh', (req, res) => {
+	console.log("webhook called: " + JSON.stringify(req.body))
+	res.status(200).send()
+})
+
+/*
+ * template json:
+ * {
+ *	from: url
+ *	to: url
+ *	schedule: date
+ *	webhook: url
+ *	}
+ */
+app.post(api + '/copy', checkToken, async(req, res) => {
+	const copyReq = req.body
+	setTimeout(async function() {
+		const response = {
+			result: 'ok'
+		}
+
+		await rp({
+			method: 'POST',
+			uri: copyReq.webhook,
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(response)
+		})
+
+	}, 1000)
+	res.status(200).send(copyReq)
 })
 
 /* app.put(api + '/test-admin', checkAdminToken, async(req, res) => {
