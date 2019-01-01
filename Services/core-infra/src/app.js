@@ -166,7 +166,8 @@ async function createUIJWTContainer(details) {
 
 async function createQueryContainer(details) {
 
-	let cmd = "echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002"
+	const users = encodeBase64(JSON.stringify(details.users))
+	let cmd = "echo $JWTUSERS | base64 -d > /assets/jwtusers && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002"
 	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
@@ -179,7 +180,8 @@ async function createQueryContainer(details) {
 				],
 				"env": [
 					{ "name": "APPCONFIG", "value": appConfig },
-					{ "name": "PUBLICKEY", "value": details.publicKey}
+					{ "name": "PUBLICKEY", "value": details.publicKey},
+					{ "name": "JWTUSERS", "value": users }
 				],
 				"command": ["/bin/sh", "-c" ],
 				"args": [cmd]

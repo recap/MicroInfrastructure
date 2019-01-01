@@ -71,8 +71,9 @@ spec:
           emptyDir:
             {}
       containers:
-        - name: focused-ishizaka
+        - name: pedantic-darwin
           image: recap/process-sshfs:v0.1
+          imagePullPolicy: Always
           ports:
             - containerPort: 3001
           env:
@@ -105,8 +106,9 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: infallible-bartik
+        - name: naughty-clarke
           image: recap/process-sshfs:v0.1
+          imagePullPolicy: Always
           ports:
             - containerPort: 3002
           env:
@@ -139,7 +141,7 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: serene-chaplygin
+        - name: sharp-lehmann
           image: recap/process-core-query:v0.1
           imagePullPolicy: Always
           ports:
@@ -164,8 +166,9 @@ spec:
           args:
             - echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
               --config $APPCONFIG -c /tmp/publicKey.txt -p 8002
-        - name: reverent-hypatia
+        - name: ecstatic-perlman
           image: recap/process-webdav:v0.3
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           env:
@@ -188,8 +191,9 @@ spec:
               p' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3002
               /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
               webdavserver-ht.js"
-        - name: hardcore-bartik
+        - name: kind-wozniak
           image: recap/process-webdav:v0.3
+          imagePullPolicy: Always
           ports:
             - containerPort: 8001
           env:

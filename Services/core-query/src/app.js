@@ -29,7 +29,8 @@ const cmdOptions = [
 	{ name: 'port', alias: 'p', type: Number},
 	{ name: 'dbpass', type: String},
 	{ name: 'host', alias: 'h', type: String},
-	{ name: 'config', type: String}
+	{ name: 'config', type: String},
+	{ name: 'users', alias: 'u', type: String}
 ]
 
 const options = cmdArgs(cmdOptions)
@@ -38,6 +39,12 @@ const options = cmdArgs(cmdOptions)
 //const xedni = new PersistentObject('./xedni.db', null, {'disableInterval': true})
 const index = new PersistentObject('./index.db')
 const xedni = new PersistentObject('./xedni.db')
+
+const users = require(options.users)
+Object.keys(users).forEach(k => {
+	const u = users[k]
+	u.decodedPublicKey = decodeBase64(u.publicKey)
+})
 
 // load keys
 //const privateKey = fs.readFileSync(options.privateKey, "utf-8")
@@ -50,6 +57,7 @@ const publicKey = fs.readFileSync(options.publicKey, "utf-8")
 
 const config = JSON.parse(decodeBase64(options.config))
 console.log("Starting with config: " + JSON.stringify(config, null, 2))
+console.log("Users: " + JSON.stringify(users, null, 2))
 
 //const httpsServer = https.createServer(credentials, app)
 const httpServer = http.createServer(app)
@@ -94,13 +102,26 @@ function isEmpty(arr) {
 }
 
 function checkToken(req, res, next) {
-	next()
 	const token = req.headers['x-access-token']
 	if (!token) {
 		res.status(403).send()
 		return
 	}
-	jwt.verify(token, publicKey, {algorithms: ['RS256']}, (err, decoded) => {
+	const preDecoded = jwt.decode(token)
+	if (!preDecoded) {
+		res.status(403).send()
+	}
+	const user = preDecoded.email
+	if(!users[user]) {
+		res.status(403).send()
+	}
+
+	const cert = users[user].decodedPublicKey
+	if (!cert) {
+		res.status(403).send()
+	}
+
+	jwt.verify(token, cert, {algorithms: ['RS256']}, (err, decoded) => {
 		if (err) {
 			res.status(403).send()
 			return
