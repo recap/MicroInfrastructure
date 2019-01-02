@@ -166,6 +166,7 @@ async function createUIJWTContainer(details) {
 
 async function createQueryContainer(details) {
 
+	console.log(details.users)
 	const users = encodeBase64(JSON.stringify(details.users))
 	let cmd = "echo $JWTUSERS | base64 -d > /assets/jwtusers && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002"
 	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
@@ -483,6 +484,13 @@ function checkSshConnection(adaptor) {
 }
 
 function copySshId(adaptor) {
+	let doneCnt = 2
+	function done(cb) {
+		doneCnt -= 1
+		if (doneCnt == 0) {
+			cb()
+		}
+	}
 	return new Promise((resolve, reject) => {
 		const conn = new ssh()
 		conn.on('error', (err) => {
@@ -495,8 +503,13 @@ function copySshId(adaptor) {
 				if (err) reject(err)
 				sftp.appendFile('.ssh/authorized_keys', adaptor.keys.public + '\n', (err) => {
 					if (err) reject(err)
-					console.log("[SSH] added key to: " + adaptor.host)
-					resolve()
+					console.log("[SSH] added public key to: " + adaptor.host)
+					done(resolve)
+				})
+				sftp.writeFile('.ssh/process_id_rsa', adaptor.keys.private + '\n', {mode: '0600'}, (err) => {
+					if (err) reject(err)
+					console.log("[SSH] added private key to: " + adaptor.host)
+					done(resolve)
 				})
 			})
 		}).connect({
@@ -618,7 +631,8 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		if (ui.type == "query") {
 			const u = await createQueryContainer({
 				descriptions: adaptorDescriptions,
-				publicKey: publicKey
+				publicKey: publicKey,
+				users: ui.users
 			})
 			const service = createService({
 				name: infra.name + '-query',

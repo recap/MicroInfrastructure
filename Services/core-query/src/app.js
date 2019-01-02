@@ -183,7 +183,7 @@ async function digg(p, host, client) {
 
 	const dirItems = await client.getDirectoryContents(p)
 	const dirs = dirItems
-		.filter(i => i.type == 'directory')
+		.filter(i => ( (i.type == 'directory') && !(isHiddenFile(i.filename)) ) )
 		.map(i => i.filename)
 	dirs.forEach(d => {
 		console.log("Digging " + d)
@@ -198,6 +198,7 @@ async function digg(p, host, client) {
 				f.endpoints = [host]
 				xedni[base] = f	
 			} else {
+				console.log(xedni[base])
 				xedni[base].endpoints.push(host)
 			}
 			console.log(base)
