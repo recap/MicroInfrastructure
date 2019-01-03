@@ -104,25 +104,31 @@ function isEmpty(arr) {
 function checkToken(req, res, next) {
 	const token = req.headers['x-access-token']
 	if (!token) {
+		concole.log("L")
 		res.status(403).send()
 		return
 	}
 	const preDecoded = jwt.decode(token)
 	if (!preDecoded) {
+		concole.log("G")
 		res.status(403).send()
 	}
 	const user = preDecoded.email
 	if(!users[user]) {
+		concole.log("G")
 		res.status(403).send()
 	}
 
 	const cert = users[user].decodedPublicKey
 	if (!cert) {
+		concole.log("K")
 		res.status(403).send()
 	}
 
 	jwt.verify(token, cert, {algorithms: ['RS256']}, (err, decoded) => {
 		if (err) {
+			console.log("P")
+			console.log(err)
 			res.status(403).send()
 			return
 		}

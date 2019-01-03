@@ -66,4 +66,4 @@ spec:
             - containerPort: 4200
         imagePullPolicy: Always
         command: ["/bin/sh", "-c"]
-        args: ["sleep 10 && node app.js -m mongo -k /assets/privateKey.txt -c /assets/publicKey.txt --dbpass $DBPASS -h data01.process-project.eu"]
+        args: ["sleep 10 && node app.js -m mongo -k /assets/privateKey.txt -c /assets/publicKey.txt --dbpass $DBPASS -h data01.process-project.eu -s /assets/certificate.txt"]

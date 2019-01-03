@@ -115,16 +115,20 @@ function createSecret(keys) {
 	  },
 	  "type": "Opaque",
 	  "data": {
-		  "id_rsa": encodeBase64(keys.private),
-		  "id_rsa.pub": encodeBase64(keys.public)
+		  "id_rsa": encodeBase64(keys.ssh.private),
+		  "id_rsa.pub": encodeBase64(keys.ssh.public)
 	  }
 	}
 }
 
 async function createUIJWTContainer(details) { 
 	let cmd = ""
-
-	const users = encodeBase64(JSON.stringify(details.users))
+	const user = {
+		[[details.user.email]]: {
+			'publicKey': encodeBase64(details.user.keys.raw.public)
+		}
+	}
+	const users = encodeBase64(JSON.stringify(user))
 
 	details.adaptors.map(a => {
 		const host = a.env.filter(e => {
@@ -153,6 +157,9 @@ async function createUIJWTContainer(details) {
 				"env": [
 					{ "name": "JWTUSERS", "value": users }
 				],
+				"volumeMounts": [
+					{ "name": "shared-data", "mountPath": "/shared-data" }
+				],
 				"securityContext": {
 					"privileged": true,
 						"capabilities": {
@@ -166,9 +173,14 @@ async function createUIJWTContainer(details) {
 
 async function createQueryContainer(details) {
 
-	console.log(details.users)
-	const users = encodeBase64(JSON.stringify(details.users))
-	let cmd = "echo $JWTUSERS | base64 -d > /assets/jwtusers && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002"
+	//console.log(details.users)
+	const user = {
+		[[details.user.email]]: {
+			'publicKey': encodeBase64(details.user.keys.raw.public)
+		}
+	}
+	const users = encodeBase64(JSON.stringify(user))
+	let cmd = "echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u /assets/jwtusers.json"
 	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
@@ -183,6 +195,9 @@ async function createQueryContainer(details) {
 					{ "name": "APPCONFIG", "value": appConfig },
 					{ "name": "PUBLICKEY", "value": details.publicKey},
 					{ "name": "JWTUSERS", "value": users }
+				],
+				"volumeMounts": [
+					{ "name": "shared-data", "mountPath": "/shared-data" }
 				],
 				"command": ["/bin/sh", "-c" ],
 				"args": [cmd]
@@ -216,6 +231,9 @@ async function createUIContainer(details) {
 				],
 				"env": [
 					{ "name": "HTDIGEST", "value": htpass }
+				],
+				"volumeMounts": [
+					{ "name": "shared-data", "mountPath": "/shared-data" }
 				],
 				"securityContext": {
 					"privileged": true,
@@ -422,6 +440,23 @@ app.get(api + '/test', checkToken, async (req, res) => {
 	res.status(200).send(req.user)
 })
 
+function deleteAndCreateSecret(namespace, data, name) {
+		return new Promise((resolve, reject) => {
+			const sName = name || 'keys'
+			kubeapi.delete('namespaces/' + namespace + '/secrets/' + sName, (err) => {
+				if (err) {
+					if (!(err.reason == 'NotFound')) {
+						console.log(err)
+					}
+				}
+				kubeapi.post('namespaces/' + namespace + '/secrets', createSecret(data), (err, result) => {
+					if (err) reject()
+					resolve(result)
+				})
+			})
+		})
+}
+
 app.put(api + '/user', checkAdminToken, async(req, res) => {
 	
 	const user = req.body
@@ -433,31 +468,44 @@ app.put(api + '/user', checkAdminToken, async(req, res) => {
 		}
 		try {
 			// generate user token
-			const userToken = generateToken(user.email, user.namespace)	
+			const userToken = generateToken(user.email, user.namespace)
+			let keys = null
 			if (results.length === 0) {
 				const iuser = user.email.split('@')[0]
 				// generate user keys
-				const keys = generateSshKeys(iuser)
+				keys = await generateKeys({
+					email: user.email,
+					user: iuser
+				})
+				console.log(keys)
 				// create user mongo entry
 				new User({
 					email: user.email,
 					namespace: user.namespace,
 					keys: keys
 				}).save()
-				// initialize k8s namespace for user
-				await kubeapi.post('namespaces', createNamespace(user.namespace))
-				// create k8s secret with keys for user
-				await kubeapi.post('namespaces/' + user.namespace + '/secrets', createSecret(keys))
-				res.status(200).send({
-					"token": userToken,
-					"user": user.email
-				})
 			} else {
-				res.status(200).send({
-					"token": userToken,
-					"user": user.email
-				})
+				keys = results[0].keys
 			}
+			// initialize k8s namespace for user
+			kubeapi.post('namespaces', createNamespace(user.namespace), async (err, result) => {
+				if (err) {
+					if (!(err.reason == 'AlreadyExists')) {
+						console.log(err)
+					}
+				}
+				try{
+					// create k8s secret with keys for user
+					await deleteAndCreateSecret(user.namespace, keys, 'keys')
+					res.status(200).send({
+						"token": userToken,
+						"user": user.email
+					})
+				} catch(err) {
+					console.log(err)
+					res.status(500).send()
+				}
+			})
 		} catch(err) {
 			console.log(err)
 			res.status(500).send()
@@ -541,6 +589,11 @@ function filterServices(services) {
 app.get(api + '/infrastructure', checkToken, async(req, res) => {
 	const services = await getNamespaceServices(req.user.namespace)
 	const info = filterServices(services.items)
+	info.push({
+		type: 'token',
+		header: 'x-access-token',
+		value: req.user.keys.token
+	})
 	res.status(200).send(info)
 })
 
@@ -567,7 +620,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	const promises = infra.adaptors.filter(adaptor => {
 		return adaptor.type == "sshfs"
 	}).map(async(adaptor, index) => {
-		adaptor.keys = req.user.keys
+		adaptor.keys = req.user.keys.ssh
 
 		if(!(await checkSshConnection(adaptor))) {
 			await copySshId(adaptor)
@@ -616,7 +669,8 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		if (ui.type == "webdav-jwt") {
 			const u = await createUIJWTContainer({
 				adaptors: containers,
-				users: ui.users
+				users: ui.users,
+				user: req.user
 			})
 			const service = createService({
 				name: infra.name + '-jwt',
@@ -632,7 +686,8 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			const u = await createQueryContainer({
 				descriptions: adaptorDescriptions,
 				publicKey: publicKey,
-				users: ui.users
+				users: ui.users,
+				user: req.user
 			})
 			const service = createService({
 				name: infra.name + '-query',
@@ -750,14 +805,25 @@ async function startMq() {
 	})
 })*/
 
-function generateSshKeys(user) {
-	const pair = keypair();
-	const publicSshKey = forge.ssh.publicKeyToOpenSSH(forge.pki.publicKeyFromPem(pair.public), user + '@process-eu.eu')
-	const privateSshKey = forge.ssh.privateKeyToOpenSSH(forge.pki.privateKeyFromPem(pair.private), user + '@process-eu.eu')
-	return {
-		public: publicSshKey,
-		private: pair.private
-	}
+function generateKeys(user) {
+	return new Promise((resolve, reject) => {
+		const pair = keypair();
+		const publicSshKey = forge.ssh.publicKeyToOpenSSH(forge.pki.publicKeyFromPem(pair.public), user.user + '@process-eu.eu')
+		const privateSshKey = forge.ssh.privateKeyToOpenSSH(forge.pki.privateKeyFromPem(pair.private), user.user + '@process-eu.eu')
+		jwt.sign({
+			email: user.email
+		}, pair.private, {algorithm: 'RS256'}, (err, token) => {
+			if (err) reject(err)
+			resolve({
+				ssh: {
+					public: publicSshKey,
+					private: pair.private
+				},
+				raw: pair,
+				token: token
+			})
+		})
+	})
 }
 
 //startMq()

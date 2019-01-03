@@ -71,7 +71,7 @@ spec:
           emptyDir:
             {}
       containers:
-        - name: happy-bohr
+        - name: angry-pike
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -106,7 +106,7 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: eager-stallman
+        - name: laughing-cori
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -141,14 +141,14 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: objective-perlman
+        - name: dazzling-dubinsky
           image: recap/process-core-query:v0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 4300
           env:
             - name: APPCONFIG
-              value: W3sibmFtZSI6InByby5jeWZyb25ldC5wbCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDAyLCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmV0L2FyY2hpdmUvZ3JvdXBzL3BsZ2dwcm9jZXNzIn0seyJuYW1lIjoibGlzYS5zdXJmc2FyYS5ubCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDAxLCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmZzL3NjcmF0Y2gvY3VzaGluZyJ9XQ==
+              value: W3sibmFtZSI6Imxpc2Euc3VyZnNhcmEubmwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMSwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25mcy9zY3JhdGNoL2N1c2hpbmcifSx7Im5hbWUiOiJwcm8uY3lmcm9uZXQucGwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMiwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25ldC9hcmNoaXZlL2dyb3Vwcy9wbGdncHJvY2VzcyJ9XQ==
             - name: PUBLICKEY
               value: |
                 -----BEGIN PUBLIC KEY-----
@@ -161,15 +161,19 @@ spec:
                 4QIDAQAB
                 -----END PUBLIC KEY-----
             - name: JWTUSERS
-              value: eyJyLnMuY3VzaGluZ0B1dmEubmwiOnsibmFtZSI6IlJlZ2dpZSBDdXNoaW5nIiwicHVibGljS2V5IjoiTFMwdExTMUNSVWRKVGlCUVZVSk1TVU1nUzBWWkxTMHRMUzBLVFVsSlFrbHFRVTVDWjJ0eGFHdHBSemwzTUVKQlVVVkdRVUZQUTBGUk9FRk5TVWxDUTJkTFEwRlJSVUZ2TmtweFMzcGFhMFpOUTA1d1VIbEZNakkwU1FwS1MwdHdNSEZIV0VscGNEUm9ialZ5Tnl0V1QwNUplSEZXTTAxSmRrNUNiRE5tY0ZKTVZEaGFaek5pWlVsWFNVcFJhbGhaYldacGEwYzJhVTl3VjJaTUNrWnVNbTl2ZG0xTFlYVnlOR3c1V0dJMWIwdFhiM0kxZUVoQmNEaHNiVFJXTVRseGVrTmpTbk5UTUVocGNuaFdjRXgyVWpKNE9ITTJWbVIwUzBab1IwY0tlakppVlhCU2FsWkhXREpvWmtkdWRITlJXV3h2Y1VkSFEweEJSVlJuV205VlNrRjZSV3BMYkdOMFREaHBVRGx4TTBRelduZ3pTVGxPVG5WWk1VUnlVd3BxV0dsM1pVaHVOazF5UzBKVU1FTkVkV2szUmxSd2EzVmFTRTl6TUdOdFlYaGlSMEpoU0VvMWFtTnRRbkZDWnpKbVRFdDJUV2xsUVdGSWVsZzRWamM1Q25GU1NpOTBUMDlCYTNOQmRIbzVUelJpZG1KV1NFWnNRWFptZFhWR1QyRjBVM3BzUzB3dk9IVkhSblp1SzBGSmVXOTFlRGM0UmpGQkwyRk5XbHAyUVhRS05GRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VGVkNURWxESUV0RldTMHRMUzB0Q2c9PSJ9fQ==
+              value: eyJyLnMuY3VzaGluZ0B1dmEubmwiOnsicHVibGljS2V5IjoiTFMwdExTMUNSVWRKVGlCU1UwRWdVRlZDVEVsRElFdEZXUzB0TFMwdENrMUpTVUpEWjB0RFFWRkZRV292UjJ0WGFHaDRWRUZ4TUZkdmIxTXhiVVZYWm5KeFVETkxSRXBsZUZsMU9HcFJTMUJOYkdsYVlXUXdOamxEY1ZkdE4ySlVaMHd6V1RWTGN3cGllbWhMWkhjMVdtRXdjRE5zV2pKUWJtMHdWSGRZZWt4bGVrUTJWWGRJZVRKdlluZHJiVXRpUzJaWmNFODVlbHAwY3pkaWVGQlRlQzlxUWtkclprNUxhbUZMWkZKNlZYRUtWRWQ0V1cxcVNtb3dlV3QxZFVrNVNrRXphMHhSTUdaTVYzZDZUM0Y0VVhScGF6WkJUVEJtV2xKcVdsRkJWelJxVnpRM1QzUnFaVmxxUzFkeFUxVkthRGhNVVZoUldXTTJDakJTZEZkSVoySjRRV1ZTTUhGVllqQkxaVUpOTVZwR1RrWktNV1ZqZG5KaFUxSkdaVWRpSzA5bFNFcHdWWEZCUlhJMFptdEhjSEZyUlVGamRrNVFUa2hVTWpKNU5HTjJjZ3AyVFdOTWFXWkpUakk0UlVwdlZUVlNTMEZ5YWtvd2JrMUxUa2RYVFd4WFVsRTFOV05yYWtWNU5rbE5jMWhLTmxSaU1VVlRkRFJoY1d4T0szWnJWM2Q0VFZGSlJFRlJRVUlLTFMwdExTMUZUa1FnVWxOQklGQlZRa3hKUXlCTFJWa3RMUzB0TFFvPSJ9fQ==
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
           command:
             - /bin/sh
             - -c
           args:
-            - echo $JWTUSERS | base64 -d > /assets/jwtusers && echo $PUBLICKEY >
-              /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG
-              -c /tmp/publicKey.txt -p 8002
-        - name: xenodochial-germain
+            - echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo
+              $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
+              --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u
+              /assets/jwtusers.json
+        - name: jovial-mclaren
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
@@ -177,6 +181,9 @@ spec:
           env:
             - name: HTDIGEST
               value: user:jsdav:98896c65e2912eb180e87a1c1955e16a
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
           securityContext:
             privileged: true
             capabilities:
@@ -194,14 +201,17 @@ spec:
               p' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3002
               /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
               webdavserver-ht.js"
-        - name: brave-raman
+        - name: quirky-swirles
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
             - containerPort: 8001
           env:
             - name: JWTUSERS
-              value: eyJyLnMuY3VzaGluZ0B1dmEubmwiOnsibmFtZSI6IlJlZ2dpZSBDdXNoaW5nIiwicHVibGljS2V5IjoiTFMwdExTMUNSVWRKVGlCUVZVSk1TVU1nUzBWWkxTMHRMUzBLVFVsSlFrbHFRVTVDWjJ0eGFHdHBSemwzTUVKQlVVVkdRVUZQUTBGUk9FRk5TVWxDUTJkTFEwRlJSVUZ2TmtweFMzcGFhMFpOUTA1d1VIbEZNakkwU1FwS1MwdHdNSEZIV0VscGNEUm9ialZ5Tnl0V1QwNUplSEZXTTAxSmRrNUNiRE5tY0ZKTVZEaGFaek5pWlVsWFNVcFJhbGhaYldacGEwYzJhVTl3VjJaTUNrWnVNbTl2ZG0xTFlYVnlOR3c1V0dJMWIwdFhiM0kxZUVoQmNEaHNiVFJXTVRseGVrTmpTbk5UTUVocGNuaFdjRXgyVWpKNE9ITTJWbVIwUzBab1IwY0tlakppVlhCU2FsWkhXREpvWmtkdWRITlJXV3h2Y1VkSFEweEJSVlJuV205VlNrRjZSV3BMYkdOMFREaHBVRGx4TTBRelduZ3pTVGxPVG5WWk1VUnlVd3BxV0dsM1pVaHVOazF5UzBKVU1FTkVkV2szUmxSd2EzVmFTRTl6TUdOdFlYaGlSMEpoU0VvMWFtTnRRbkZDWnpKbVRFdDJUV2xsUVdGSWVsZzRWamM1Q25GU1NpOTBUMDlCYTNOQmRIbzVUelJpZG1KV1NFWnNRWFptZFhWR1QyRjBVM3BzUzB3dk9IVkhSblp1SzBGSmVXOTFlRGM0UmpGQkwyRk5XbHAyUVhRS05GRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VGVkNURWxESUV0RldTMHRMUzB0Q2c9PSJ9fQ==
+              value: eyJyLnMuY3VzaGluZ0B1dmEubmwiOnsicHVibGljS2V5IjoiTFMwdExTMUNSVWRKVGlCU1UwRWdVRlZDVEVsRElFdEZXUzB0TFMwdENrMUpTVUpEWjB0RFFWRkZRV292UjJ0WGFHaDRWRUZ4TUZkdmIxTXhiVVZYWm5KeFVETkxSRXBsZUZsMU9HcFJTMUJOYkdsYVlXUXdOamxEY1ZkdE4ySlVaMHd6V1RWTGN3cGllbWhMWkhjMVdtRXdjRE5zV2pKUWJtMHdWSGRZZWt4bGVrUTJWWGRJZVRKdlluZHJiVXRpUzJaWmNFODVlbHAwY3pkaWVGQlRlQzlxUWtkclprNUxhbUZMWkZKNlZYRUtWRWQ0V1cxcVNtb3dlV3QxZFVrNVNrRXphMHhSTUdaTVYzZDZUM0Y0VVhScGF6WkJUVEJtV2xKcVdsRkJWelJxVnpRM1QzUnFaVmxxUzFkeFUxVkthRGhNVVZoUldXTTJDakJTZEZkSVoySjRRV1ZTTUhGVllqQkxaVUpOTVZwR1RrWktNV1ZqZG5KaFUxSkdaVWRpSzA5bFNFcHdWWEZCUlhJMFptdEhjSEZyUlVGamRrNVFUa2hVTWpKNU5HTjJjZ3AyVFdOTWFXWkpUakk0UlVwdlZUVlNTMEZ5YWtvd2JrMUxUa2RYVFd4WFVsRTFOV05yYWtWNU5rbE5jMWhLTmxSaU1VVlRkRFJoY1d4T0szWnJWM2Q0VFZGSlJFRlJRVUlLTFMwdExTMUZUa1FnVWxOQklGQlZRa3hKUXlCTFJWa3RMUzB0TFFvPSJ9fQ==
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
           securityContext:
             privileged: true
             capabilities:
@@ -219,3 +229,4 @@ spec:
               'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
               davfs http://localhost:3002 /data/pro.cyfronet.pl &&  cd
               /root/webdavserver && node webdavserver-jwt.js"
+
