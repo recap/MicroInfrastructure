@@ -1,4 +1,5 @@
 const YAML = require('yaml')
+const _ = require('underscore')
 const amqp = require('amqplib')
 const cmdArgs = require('command-line-args')
 const { createClient} = require('webdav')
@@ -201,13 +202,22 @@ async function digg(p, host, client) {
 		.forEach(f => {
 			const base = path.basename(f.filename)
 			if (!xedni[base]) {
-				f.endpoints = [host]
-				xedni[base] = f	
-			} else {
-				console.log(xedni[base])
-				xedni[base].endpoints.push(host)
+				xedni[base] = []
+			//	f.endpoints = [host]
+			//	xedni[base] = f	
 			}
-			console.log(base)
+
+			f.location = host
+			const inThere = xedni[base].some(e => {
+				return _.isEqual(e, f)
+			})
+			if (!inThere) {
+				xedni[base].push(f)
+			}
+			//	console.log(xedni[base])
+			//	xedni[base].endpoints.push(host)
+			
+			//console.log(base)
 		})
 }
 
