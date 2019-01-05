@@ -37,8 +37,8 @@ metadata:
       name: core-mongo
 spec:
     hostname: mongo
-    nodeSelector:
-        type: core
+    #nodeSelector:
+    #   type: core
     volumes:
     - name: mongo-persistent-storage
       persistentVolumeClaim:

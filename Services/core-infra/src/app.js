@@ -246,7 +246,53 @@ async function createUIContainer(details) {
 			}
 }
 
-function createContainer(details) {
+function createVolumeCliam(details) {
+	return {
+		"apiVersion": v1,
+		"kind": PersistentVolumeClaim,
+		"metadata": {
+			"name": details.name,
+			"namespace": details.namespace,
+			"labels": {
+				"app": details.cntName
+			}
+		},
+		"spec": {
+			"storageClassName": "rook-ceph-block",
+			"accessModes": [ 
+				'ReadWriteOnce'
+			],
+			"resources": {
+				"requests": details.size
+			}
+		}
+	}
+}
+
+function createNativeStorageContainer(details) {
+
+	return {
+				"name": dockerNames.getRandomName().replace('_','-'),
+				"image": "recap/process-webdav:v0.3",
+				"imagePullPolicy": "Always",
+				"ports": [
+					{
+						"containerPort": details.containerPort
+					}
+				],
+				"env": [
+					{ "name": "STORAGE_NAME", "value": details.name }
+				],
+				"volumeMounts": [
+					{ "name": "shared-data", "mountPath": "/shared-data" },
+					{ "name": details.volumeClaim.name, "mountPath": "/data" }
+				],
+				"command": ["/bin/sh", "-c" ],
+				"args": [ "/bin/mkdir /shared-data/$STORAGE_NAME && cd /root/fileagent && node fileagent /data/ " + details.containerPort ]
+	}
+}
+
+function createSshStorageContainer(details) {
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-sshfs:v0.1",
@@ -616,8 +662,9 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	const response = {}
 	const services = []
 	const adaptorDescriptions = []
+	const volumes = createVolume()
 	// convert description to k8s container list
-	const promises = infra.adaptors.filter(adaptor => {
+	const sshPromises = infra.storageAdaptorContainers.filter(adaptor => {
 		return adaptor.type == "sshfs"
 	}).map(async(adaptor, index) => {
 		adaptor.keys = req.user.keys.ssh
@@ -628,7 +675,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			console.log("[SSH] key already present: " + adaptor.host)
 		}
 
-		const container = createContainer({
+		const container = createSshStorageContainer({
 			namespace: req.user.namespace,
 			containerPort: cntPort + index,
 			sshHost: adaptor.host,
@@ -646,15 +693,44 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		adaptorDescriptions.push(desc)
 		return container
 	})
-	const containers = await Promise.all(promises)
+	const sshContainers = await Promise.all(sshPromises)
+	
+	const nativePromises = infra.storageAdaptorContainers.filter(adaptor => {
+		return adaptor.type == "native"
+	}).map(async(adaptor, index) => {
+		const volume = {
+			name: adaptor.name + "-pers-storage",
+			persistentVolumeClaim: {
+				claimName: adaptor.volume.name
+			}
+		}
+		const container = createNativeStorageContainer({
+			namespace: req.user.namespace,
+			containerPort: cntPort + index,
+			name: adaptor.name,
+			volumeClaim: volume
+		})
+		const claim = createVolumeClaim({
+			namespace: req.user.namespace,
+			name: adaptor.volume.name,
+			size: adaptor.volume.size
+		})
+		container.aux = claim
+		volumes.push(volume)
+		return container
+	})
+	const nativeContainers = await Promise.all(nativePromises)
+
+	const containers = nativeContainers.concat(sshContainers)
+	console.log(containers)
 	// convert ui descriptions to k8s container list
-	const uiPromises = infra.ui.map(async(ui, index) => {
+	const uiPromises = infra.logicContainers.map(async(c, index) => {
 		const uicnt = []
-		if (ui.type == "webdav") {
+		if (c.type == "webdav") {
 			const u = await createUIContainer({
 				adaptors: containers,
-				user: ui.user,
-				pass: ui.pass
+				user: c.user,
+				pass: c.pass
 			})
 			const service = createService({
 				name: infra.name + '-ht',
@@ -666,10 +742,10 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			uicnt.push(u)
 			services.push(service)
 		}
-		if (ui.type == "webdav-jwt") {
+		if (c.type == "webdav-jwt") {
 			const u = await createUIJWTContainer({
 				adaptors: containers,
-				users: ui.users,
+				users: c.users,
 				user: req.user
 			})
 			const service = createService({
@@ -682,11 +758,11 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			uicnt.push(u)
 			services.push(service)
 		}
-		if (ui.type == "query") {
+		if (c.type == "query") {
 			const u = await createQueryContainer({
 				descriptions: adaptorDescriptions,
 				publicKey: publicKey,
-				users: ui.users,
+				users: c.users,
 				user: req.user
 			})
 			const service = createService({
@@ -706,7 +782,6 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	// block wait for promises to be resolved
 	await Promise.all(uiPromises)
 
-	const volumes = createVolume()
 	const deployment = createDeployment({
 		name: infra.name,
 		namespace: req.user.namespace
