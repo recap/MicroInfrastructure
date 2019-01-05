@@ -46,6 +46,21 @@ spec:
       targetPort: 8001
   type: NodePort
 ---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pv-001
+  namespace: cushing-001
+  labels:
+    app: upbeat-greider
+spec:
+  storageClassName: rook-ceph-block
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 kind: Deployment
 apiVersion: apps/v1
 metadata:
@@ -70,8 +85,32 @@ spec:
         - name: shared-data
           emptyDir:
             {}
+        - name: mynativestorage-pers-storage
+          persistentVolumeClaim:
+            claimName: pv-001
       containers:
-        - name: jovial-proskuriakova
+        - name: upbeat-greider
+          image: recap/process-webdav:v0.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
+          env:
+            - name: STORAGE_NAME
+              value: mynativestorage
+            - name: NAME
+              value: mynativestorage
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+            - name: mynativestorage-pers-storage
+              mountPath: /data
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - /bin/mkdir /shared-data/$STORAGE_NAME && cd /root/fileagent &&
+              node fileagent /data/ 3001
+        - name: elegant-matsumoto
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -85,6 +124,8 @@ spec:
               value: "22"
             - name: SSH_PATH
               value: /nfs/scratch/cushing
+            - name: NAME
+              value: null
           volumeMounts:
             - name: ssh-key
               mountPath: /ssh
@@ -106,7 +147,7 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: relaxed-euler
+        - name: charming-galileo
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -120,6 +161,8 @@ spec:
               value: "22"
             - name: SSH_PATH
               value: /net/archive/groups/plggprocess
+            - name: NAME
+              value: null
           volumeMounts:
             - name: ssh-key
               mountPath: /ssh
@@ -141,14 +184,14 @@ spec:
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
               /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: gallant-carson
+        - name: serene-tereshkova
           image: recap/process-core-query:v0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 4300
           env:
             - name: APPCONFIG
-              value: W3sibmFtZSI6InByby5jeWZyb25ldC5wbCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDAyLCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmV0L2FyY2hpdmUvZ3JvdXBzL3BsZ2dwcm9jZXNzIn0seyJuYW1lIjoibGlzYS5zdXJmc2FyYS5ubCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDAxLCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmZzL3NjcmF0Y2gvY3VzaGluZyJ9XQ==
+              value: W3sibmFtZSI6Imxpc2Euc3VyZnNhcmEubmwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMSwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25mcy9zY3JhdGNoL2N1c2hpbmcifSx7Im5hbWUiOiJwcm8uY3lmcm9uZXQucGwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMiwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25ldC9hcmNoaXZlL2dyb3Vwcy9wbGdncHJvY2VzcyJ9XQ==
             - name: PUBLICKEY
               value: |
                 -----BEGIN PUBLIC KEY-----
@@ -173,7 +216,7 @@ spec:
               $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
               --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u
               /assets/jwtusers.json
-        - name: upbeat-elgamal
+        - name: pensive-khorana
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
@@ -194,14 +237,17 @@ spec:
             - -c
           args:
             - " echo $HTDIGEST > /assets/htusers && /bin/mkdir
-              /data/lisa.surfsara.nl && echo 'http://localhost:3001 u p' >>
+              /data/mynativestorage && echo 'http://localhost:3001 u p' >>
               /etc/davfs2/secrets && mount -t davfs http://localhost:3001
-              /data/lisa.surfsara.nl &&  echo $HTDIGEST > /assets/htusers &&
-              /bin/mkdir /data/pro.cyfronet.pl && echo 'http://localhost:3002 u
-              p' >> /etc/davfs2/secrets && mount -t davfs http://localhost:3002
-              /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
+              /data/mynativestorage &&  echo $HTDIGEST > /assets/htusers &&
+              /bin/mkdir /data/undefined && echo 'http://localhost:3001 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3001
+              /data/undefined &&  echo $HTDIGEST > /assets/htusers && /bin/mkdir
+              /data/undefined && echo 'http://localhost:3002 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3002
+              /data/undefined &&  cd /root/webdavserver && node
               webdavserver-ht.js"
-        - name: zen-jepsen
+        - name: dreamy-haslett
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
@@ -222,10 +268,13 @@ spec:
             - -c
           args:
             - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir
-              /data/lisa.surfsara.nl && echo 'http://localhost:3001 u p' >>
+              /data/mynativestorage && echo 'http://localhost:3001 u p' >>
               /etc/davfs2/secrets && mount -t davfs http://localhost:3001
-              /data/lisa.surfsara.nl &&  echo $JWTUSERS | base64 -d >
-              /assets/jwtusers && /bin/mkdir /data/pro.cyfronet.pl && echo
+              /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir /data/undefined && echo
+              'http://localhost:3001 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3001 /data/undefined &&  echo $JWTUSERS |
+              base64 -d > /assets/jwtusers && /bin/mkdir /data/undefined && echo
               'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
-              davfs http://localhost:3002 /data/pro.cyfronet.pl &&  cd
+              davfs http://localhost:3002 /data/undefined &&  cd
               /root/webdavserver && node webdavserver-jwt.js"

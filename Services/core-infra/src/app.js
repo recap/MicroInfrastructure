@@ -132,7 +132,7 @@ async function createUIJWTContainer(details) {
 
 	details.adaptors.map(a => {
 		const host = a.env.filter(e => {
-			return e.name == "SSH_HOST"
+			return e.name == "NAME"
 		})
 		if (isEmpty(host)) return []
 		return {
@@ -209,7 +209,7 @@ async function createUIContainer(details) {
 	const htpass = details.user + ":jsdav:" + md5(details.user + ":jsdav:" + details.pass)
 	details.adaptors.map(a => {
 		const host = a.env.filter(e => {
-			return e.name == "SSH_HOST"
+			return e.name == "NAME"
 		})
 		return {
 			host: host[0].value,
@@ -246,10 +246,10 @@ async function createUIContainer(details) {
 			}
 }
 
-function createVolumeCliam(details) {
+function createVolumeClaim(details) {
 	return {
-		"apiVersion": v1,
-		"kind": PersistentVolumeClaim,
+		"kind": "PersistentVolumeClaim",
+		"apiVersion": "v1",
 		"metadata": {
 			"name": details.name,
 			"namespace": details.namespace,
@@ -263,7 +263,9 @@ function createVolumeCliam(details) {
 				'ReadWriteOnce'
 			],
 			"resources": {
-				"requests": details.size
+				"requests": {
+					"storage": details.size
+				}
 			}
 		}
 	}
@@ -281,7 +283,8 @@ function createNativeStorageContainer(details) {
 					}
 				],
 				"env": [
-					{ "name": "STORAGE_NAME", "value": details.name }
+					{ "name": "STORAGE_NAME", "value": details.name },
+					{ "name": "NAME", "value": details.name }
 				],
 				"volumeMounts": [
 					{ "name": "shared-data", "mountPath": "/shared-data" },
@@ -306,7 +309,9 @@ function createSshStorageContainer(details) {
 					{ "name": "SSH_USER", "value": details.sshUser },
 					{ "name": "SSH_HOST", "value": details.sshHost },
 					{ "name": "SSH_PORT", "value": details.sshPort },
-					{ "name": "SSH_PATH", "value": details.sshPath }
+					{ "name": "SSH_PATH", "value": details.sshPath },
+					{ "name": "NAME", "value": details.name }
+
 				],
 				"volumeMounts": [
 					{ "name": "ssh-key", "mountPath": "/ssh", "readOnly": true },
@@ -661,6 +666,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	let cntPort = 3001
 	const response = {}
 	const services = []
+	const claims = []
 	const adaptorDescriptions = []
 	const volumes = createVolume()
 	// convert description to k8s container list
@@ -712,17 +718,18 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		})
 		const claim = createVolumeClaim({
 			namespace: req.user.namespace,
+			cntName: container.name,
 			name: adaptor.volume.name,
 			size: adaptor.volume.size
 		})
-		container.aux = claim
+		claims.push(claim)
 		volumes.push(volume)
 		return container
 	})
 	const nativeContainers = await Promise.all(nativePromises)
 
 	const containers = nativeContainers.concat(sshContainers)
-	console.log(containers)
+	// console.log(JSON.stringify(containers))
 	// convert ui descriptions to k8s container list
 	const uiPromises = infra.logicContainers.map(async(c, index) => {
 		const uicnt = []
@@ -806,6 +813,11 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 
 	services.forEach(s => {
 		yml += YAML.stringify(s)
+		yml += "---\n"
+	})
+
+	claims.forEach(c => {
+		yml += YAML.stringify(c)
 		yml += "---\n"
 	})
 
