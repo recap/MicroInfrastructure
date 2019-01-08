@@ -196,9 +196,9 @@ async function createJupyterContainer(details) {
 		}
 	}).forEach(a => {
 		if (isEmpty(a)) return	
-		cmd += "echo $JPASSWD | base64 -d >> /home/jovyan/.jupyter/jupyter_notebook_config.py && echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
-
+	cmd += " echo $JPASSWD | base64 -d >> /home/jovyan/.jupyter/jupyter_notebook_config.py && "
 	cmd += " cd /data && jupyter lab --allow-root"
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
@@ -1006,9 +1006,6 @@ function generateKeys(user) {
 		})
 	})
 }
-
-const passwd = jupyter.jupyterPasswd('thesame')
-console.log(passwd)
 
 //startMq()
 //checkMongo()
