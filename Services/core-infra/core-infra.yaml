@@ -30,8 +30,8 @@ spec:
       labels:
         app: core-infra
     spec:
-        #      nodeSelector:
-        #type: core
+      nodeSelector:
+        type: core
       hostname: infra
       volumes:
       - name: vault

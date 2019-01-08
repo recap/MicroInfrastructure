@@ -17,6 +17,22 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
+  name: test-001-jupyter
+  namespace: cushing-001
+  labels:
+    app: test-001
+    type: jupyter
+spec:
+  selector:
+    app: test-001
+  ports:
+    - port: 8888
+      targetPort: 8888
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
   name: test-001-ht
   namespace: cushing-001
   labels:
@@ -62,6 +78,8 @@ spec:
       labels:
         app: test-001
     spec:
+      nodeSelector:
+        location: uva
       hostname: test-001
       volumes:
         - name: ssh-key
@@ -71,11 +89,11 @@ spec:
           emptyDir:
             {}
       containers:
-        - name: competent-mestorf
+        - name: vibrant-bell
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
-            - containerPort: 3001
+            - containerPort: 3004
           env:
             - name: STORAGE_NAME
               value: mynativestorage
@@ -89,12 +107,12 @@ spec:
             - -c
           args:
             - /bin/mkdir -p /shared-data/$STORAGE_NAME && cd /root/fileagent &&
-              node fileagent /data/ 3001
-        - name: vigorous-bhaskara
+              node fileagent /data/ /shared-data/ 3004
+        - name: elastic-ardinghelli
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
-            - containerPort: 3001
+            - containerPort: 3003
           env:
             - name: SSH_USER
               value: cushing
@@ -105,7 +123,7 @@ spec:
             - name: SSH_PATH
               value: /nfs/scratch/cushing
             - name: NAME
-              value: null
+              value: lisa.surfsara.nl
           volumeMounts:
             - name: ssh-key
               mountPath: /ssh
@@ -125,9 +143,10 @@ spec:
               /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
               /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
-              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd /root/fileagent
-              && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: gracious-cannon
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd
+              /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/
+              3003
+        - name: frosty-goldberg
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -142,7 +161,7 @@ spec:
             - name: SSH_PATH
               value: /net/archive/groups/plggprocess
             - name: NAME
-              value: null
+              value: pro.cyfronet.pl
           volumeMounts:
             - name: ssh-key
               mountPath: /ssh
@@ -162,16 +181,17 @@ spec:
               /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
               /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
-              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd /root/fileagent
-              && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: naughty-varahamihira
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd
+              /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/
+              3002
+        - name: confident-haslett
           image: recap/process-core-query:v0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 4300
           env:
             - name: APPCONFIG
-              value: W3sibmFtZSI6Imxpc2Euc3VyZnNhcmEubmwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMSwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25mcy9zY3JhdGNoL2N1c2hpbmcifSx7Im5hbWUiOiJwcm8uY3lmcm9uZXQucGwiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMiwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL25ldC9hcmNoaXZlL2dyb3Vwcy9wbGdncHJvY2VzcyJ9XQ==
+              value: W3sibmFtZSI6InByby5jeWZyb25ldC5wbCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDAyLCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmV0L2FyY2hpdmUvZ3JvdXBzL3BsZ2dwcm9jZXNzIn0seyJuYW1lIjoibGlzYS5zdXJmc2FyYS5ubCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDAzLCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmZzL3NjcmF0Y2gvY3VzaGluZyJ9XQ==
             - name: PUBLICKEY
               value: |
                 -----BEGIN PUBLIC KEY-----
@@ -196,7 +216,38 @@ spec:
               $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
               --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u
               /assets/jwtusers.json
-        - name: gracious-shtern
+        - name: relaxed-snyder
+          image: recap/process-jupyter:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8888
+          env:
+            - name: JWTUSERS
+              value: eyJyLnMuY3VzaGluZ0B1dmEubmwiOnsicHVibGljS2V5IjoiTFMwdExTMUNSVWRKVGlCU1UwRWdVRlZDVEVsRElFdEZXUzB0TFMwdENrMUpTVUpEWjB0RFFWRkZRWFJyU3pKQ1YyUkJhVzExV1ZkR2JIWkRVRUppSzJaMk9HdzJWRkpvYW5jcmQxaFZVbWcxT0RaeVZDOUxXRUZ1YzBsc01rTXJWRWROZDFCRlpBcDRkR0pZTUhkTlVIWktNMmxIY2pCSFdXVTJWVFZaYWtONWVFUk9UV1ZyVDBoS05YaHBTMHN3WVc1RVVuUkhWRlZDVG5ObGJsaDBjM1I0Tm5CRmJISlBWR1YwZUZsc00wRUtTMGMxYTBwNFZWZEhSbE5tYlRKNFZ6UmFaR3RwVEhndlkyNWxVbFY2U2s1UWVVOURWemxRUzJFME5YUkVkVTVQVFVKQ2Qwc3pkWEZNVm5jMGNFaE1SelJIZVRsc2VXWjBDbFZzVEVKUlpuUkpOVFZ2WnpWcmRHTTVSMjVsWTBoQ00xbHhjMUJWYTFGM1ZrUTJjMGxuVGswdlQwSm1NRkZTTkhVdlZEWktabkJWWW5oeFozWmtjMkZ2WWs5aFlqRXdOZ3BCY3pVNVNIZHdRMGxzU21Nd05VbDRXRU5RVVVreVZuVlZWRzlVZHpsTmVGVlJWekp0WVhCSFV5OXdXV1ZhSzAxNlYwbG9NbXhuTDA1Q01tMUNXRlZ4TjNkSlJFRlJRVUlLTFMwdExTMUZUa1FnVWxOQklGQlZRa3hKUXlCTFJWa3RMUzB0TFFvPSJ9fQ==
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3004 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3004
+              /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/lisa.surfsara.nl && echo
+              'http://localhost:3003 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3003 /data/lisa.surfsara.nl &&  echo
+              $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/pro.cyfronet.pl && echo 'http://localhost:3002 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3002
+              /data/pro.cyfronet.pl &&  cd /data && jupyter lab --allow-root"
+        - name: xenodochial-yalow
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
@@ -217,17 +268,17 @@ spec:
             - -c
           args:
             - " echo $HTDIGEST > /assets/htusers && /bin/mkdir -p
-              /data/mynativestorage && echo 'http://localhost:3001 u p' >>
-              /etc/davfs2/secrets && mount -t davfs http://localhost:3001
+              /data/mynativestorage && echo 'http://localhost:3004 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3004
               /data/mynativestorage &&  echo $HTDIGEST > /assets/htusers &&
-              /bin/mkdir /data/undefined && echo 'http://localhost:3001 u p' >>
-              /etc/davfs2/secrets && mount -t davfs http://localhost:3001
-              /data/undefined &&  echo $HTDIGEST > /assets/htusers && /bin/mkdir
-              /data/undefined && echo 'http://localhost:3002 u p' >>
-              /etc/davfs2/secrets && mount -t davfs http://localhost:3002
-              /data/undefined &&  cd /root/webdavserver && node
-              webdavserver-ht.js"
-        - name: hungry-kirch
+              /bin/mkdir -p /data/lisa.surfsara.nl && echo
+              'http://localhost:3003 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3003 /data/lisa.surfsara.nl &&  echo
+              $HTDIGEST > /assets/htusers && /bin/mkdir -p /data/pro.cyfronet.pl
+              && echo 'http://localhost:3002 u p' >> /etc/davfs2/secrets &&
+              mount -t davfs http://localhost:3002 /data/pro.cyfronet.pl &&  cd
+              /root/webdavserver && node webdavserver-ht.js"
+        - name: infallible-turing
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
@@ -247,14 +298,15 @@ spec:
             - /bin/sh
             - -c
           args:
-            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir
-              /data/mynativestorage && echo 'http://localhost:3001 u p' >>
-              /etc/davfs2/secrets && mount -t davfs http://localhost:3001
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3004 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3004
               /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
-              /assets/jwtusers && /bin/mkdir /data/undefined && echo
-              'http://localhost:3001 u p' >> /etc/davfs2/secrets && mount -t
-              davfs http://localhost:3001 /data/undefined &&  echo $JWTUSERS |
-              base64 -d > /assets/jwtusers && /bin/mkdir /data/undefined && echo
-              'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
-              davfs http://localhost:3002 /data/undefined &&  cd
-              /root/webdavserver && node webdavserver-jwt.js"
+              /assets/jwtusers && /bin/mkdir -p /data/lisa.surfsara.nl && echo
+              'http://localhost:3003 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3003 /data/lisa.surfsara.nl &&  echo
+              $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/pro.cyfronet.pl && echo 'http://localhost:3002 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3002
+              /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
+              webdavserver-jwt.js"
