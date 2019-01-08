@@ -35,6 +35,8 @@ const cmdOptions = [
 ]
 
 const options = cmdArgs(cmdOptions)
+// TODO fix rook ceph storage
+const disableRook = true
 
 // load keys
 const privateKey = fs.readFileSync(options.privateKey, "utf-8")
@@ -141,7 +143,7 @@ async function createUIJWTContainer(details) {
 		}
 	}).forEach(a => {
 		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
 
 	cmd += " cd /root/webdavserver && node webdavserver-jwt.js"
@@ -216,7 +218,7 @@ async function createUIContainer(details) {
 			port: a.ports[0].containerPort
 		}
 	}).forEach(a => {
-		cmd += " echo $HTDIGEST > /assets/htusers && /bin/mkdir /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+		cmd += " echo $HTDIGEST > /assets/htusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
 
 	cmd += " cd /root/webdavserver && node webdavserver-ht.js"
@@ -273,9 +275,9 @@ function createVolumeClaim(details) {
 
 function createNativeStorageContainer(details) {
 
-	return {
+	const container =  {
 				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-webdav:v0.3",
+				"image": "recap/process-sshfs:v0.1",
 				"imagePullPolicy": "Always",
 				"ports": [
 					{
@@ -291,8 +293,15 @@ function createNativeStorageContainer(details) {
 					{ "name": details.volumeClaim.name, "mountPath": "/data" }
 				],
 				"command": ["/bin/sh", "-c" ],
-				"args": [ "/bin/mkdir /shared-data/$STORAGE_NAME && cd /root/fileagent && node fileagent /data/ " + details.containerPort ]
+				"args": [ "/bin/mkdir -p /shared-data/$STORAGE_NAME && cd /root/fileagent && node fileagent /data/ /shared-data/ " + details.containerPort ]
 	}
+
+	// TODO fic rook and remove
+	if (disableRook) {
+		container.volumeMounts.splice(-1,1)
+	}
+
+	return container
 }
 
 function createSshStorageContainer(details) {
@@ -324,7 +333,7 @@ function createSshStorageContainer(details) {
 						}
 				},
 				"command": ["/bin/sh", "-c" ],
-				"args": [ "/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600 /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/ " + details.containerPort ]
+				"args": [ "/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600 /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/ " + details.containerPort ]
 			}
 }
 
@@ -368,6 +377,9 @@ function createDeployment(details, volumes, containers) {
 					}
 				  },
 				  spec: {
+					nodeSelector: {
+						location: details.location,
+					},
 					hostname: details.name,
 					volumes: volumes,
 					containers: containers
@@ -681,9 +693,11 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			console.log("[SSH] key already present: " + adaptor.host)
 		}
 
+		cntPort += 1
 		const container = createSshStorageContainer({
+			name: adaptor.host,
 			namespace: req.user.namespace,
-			containerPort: cntPort + index,
+			containerPort: cntPort,
 			sshHost: adaptor.host,
 			sshPort: adaptor.port || '22',
 			sshUser: adaptor.user,
@@ -692,7 +706,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		const desc = {
 			name: adaptor.host,
 			host: 'localhost',
-			port: cntPort + index,
+			port: cntPort,
 			type: 'webdav',
 			mount: adaptor.path
 		}
@@ -710,9 +724,10 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				claimName: adaptor.volume.name
 			}
 		}
+		cntPort += 1
 		const container = createNativeStorageContainer({
 			namespace: req.user.namespace,
-			containerPort: cntPort + index,
+			containerPort: cntPort,
 			name: adaptor.name,
 			volumeClaim: volume
 		})
@@ -722,8 +737,11 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			name: adaptor.volume.name,
 			size: adaptor.volume.size
 		})
-		claims.push(claim)
-		volumes.push(volume)
+		//TODO
+		if(!disableRook) {
+			claims.push(claim)
+			volumes.push(volume)
+		}
 		return container
 	})
 	const nativeContainers = await Promise.all(nativePromises)
@@ -791,10 +809,11 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 
 	const deployment = createDeployment({
 		name: infra.name,
-		namespace: req.user.namespace
+		namespace: req.user.namespace,
+		location: infra.location
 	}, volumes, containers)
 
-	/*try{
+	try{
 		// create k8s deployment
 		await kubeext.delete('namespaces/' + req.user.namespace + '/deployments', deployment)
 		await kubeext.post('namespaces/' + req.user.namespace + '/deployments', deployment)
@@ -807,7 +826,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		})
 	} catch (err) {
 		console.log("Error deploying: " + err)
-	}*/
+	}
 
 	let yml = ''
 
@@ -816,10 +835,14 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		yml += "---\n"
 	})
 
-	claims.forEach(c => {
-		yml += YAML.stringify(c)
-		yml += "---\n"
-	})
+
+	// TODO fix
+	if (!disableRook) {
+		claims.forEach(c => {
+			yml += YAML.stringify(c)
+			yml += "---\n"
+		})
+	}
 
 	yml += YAML.stringify(deployment)
 	console.log(yml)
@@ -829,7 +852,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	
 	//const serviceList = await getNamespaceServices(req.user.namespace)
 	//const info = filterServices(serviceList.items).filter(i => i.name == infra.name)
-	res.status(200).send()
+	res.status(200).send(YAML.parseAllDocuments(yml))
 })
 
 function deploy(desc) {

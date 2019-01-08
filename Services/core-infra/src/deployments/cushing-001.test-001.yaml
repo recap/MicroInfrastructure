@@ -46,21 +46,6 @@ spec:
       targetPort: 8001
   type: NodePort
 ---
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: pv-001
-  namespace: cushing-001
-  labels:
-    app: upbeat-greider
-spec:
-  storageClassName: rook-ceph-block
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
 kind: Deployment
 apiVersion: apps/v1
 metadata:
@@ -85,12 +70,9 @@ spec:
         - name: shared-data
           emptyDir:
             {}
-        - name: mynativestorage-pers-storage
-          persistentVolumeClaim:
-            claimName: pv-001
       containers:
-        - name: upbeat-greider
-          image: recap/process-webdav:v0.3
+        - name: competent-mestorf
+          image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 3001
@@ -102,15 +84,13 @@ spec:
           volumeMounts:
             - name: shared-data
               mountPath: /shared-data
-            - name: mynativestorage-pers-storage
-              mountPath: /data
           command:
             - /bin/sh
             - -c
           args:
-            - /bin/mkdir /shared-data/$STORAGE_NAME && cd /root/fileagent &&
+            - /bin/mkdir -p /shared-data/$STORAGE_NAME && cd /root/fileagent &&
               node fileagent /data/ 3001
-        - name: elegant-matsumoto
+        - name: vigorous-bhaskara
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -145,9 +125,9 @@ spec:
               /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
               /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
-              /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: charming-galileo
+        - name: gracious-cannon
           image: recap/process-sshfs:v0.1
           imagePullPolicy: Always
           ports:
@@ -182,9 +162,9 @@ spec:
               /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
               /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
-              /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd /root/fileagent
               && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: serene-tereshkova
+        - name: naughty-varahamihira
           image: recap/process-core-query:v0.1
           imagePullPolicy: Always
           ports:
@@ -216,7 +196,7 @@ spec:
               $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
               --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u
               /assets/jwtusers.json
-        - name: pensive-khorana
+        - name: gracious-shtern
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
@@ -236,7 +216,7 @@ spec:
             - /bin/sh
             - -c
           args:
-            - " echo $HTDIGEST > /assets/htusers && /bin/mkdir
+            - " echo $HTDIGEST > /assets/htusers && /bin/mkdir -p
               /data/mynativestorage && echo 'http://localhost:3001 u p' >>
               /etc/davfs2/secrets && mount -t davfs http://localhost:3001
               /data/mynativestorage &&  echo $HTDIGEST > /assets/htusers &&
@@ -247,7 +227,7 @@ spec:
               /etc/davfs2/secrets && mount -t davfs http://localhost:3002
               /data/undefined &&  cd /root/webdavserver && node
               webdavserver-ht.js"
-        - name: dreamy-haslett
+        - name: hungry-kirch
           image: recap/process-webdav:v0.3
           imagePullPolicy: Always
           ports:
