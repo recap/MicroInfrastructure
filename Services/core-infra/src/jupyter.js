@@ -1,7 +1,7 @@
 const crypto = require('crypto')
-const shasum = crypto.createHash('sha1')
 
 exports.jupyterPasswd = function(password) {
+	const shasum = crypto.createHash('sha1')
 	const saltLen = 12
 	const max = Math.pow(2, 4 * saltLen)
 	const salt  = Math.floor(Math.random() * Math.floor(max)).toString(16)

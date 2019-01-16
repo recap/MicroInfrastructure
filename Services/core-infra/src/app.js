@@ -329,12 +329,11 @@ async function createGenericContainer(details) {
 		}
 	}).forEach(a => {
 		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+		cmd += " /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
 	
 	const users = encodeBase64(JSON.stringify(user))
-	cmd += " echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p " + details.port + " -u /assets/jwtusers.json"
-	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
+	cmd += "  echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p " + details.port + " -u /assets/jwtusers.json"
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-datanet-adaptor:v0.1",
@@ -382,12 +381,11 @@ async function createDatanetContainer(details) {
 		}
 	}).forEach(a => {
 		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+		cmd += " /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
 	
 	const users = encodeBase64(JSON.stringify(user))
-	cmd += " echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p 8003 -u /assets/jwtusers.json"
-	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
+	cmd += "  echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p 8003 -u /assets/jwtusers.json"
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": "recap/process-datanet-adaptor:v0.1",
@@ -676,7 +674,7 @@ function checkToken(req, res, next) {
 			res.status(403).send()
 			return
 		}
-		User.find(decoded.email, (err, results) => {
+		User.find({email: decoded.user}, (err, results) => {
 			if (err) throw err
 			if (isEmpty(results)) {
 				res.status(403).send()
@@ -1000,7 +998,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			services.push(service)
 		}
 		if (c.type == "dispel") {
-			const u = await createJupyterContainer({
+			const u = await createDispelContainer({
 				adaptors: containers,
 				users: c.users,
 				user: req.user
@@ -1052,7 +1050,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			services.push(service)
 		}
 		if (c.type == "datanet") {
-			const u = await createDatenetContainer({
+			const u = await createDatanetContainer({
 				adaptors: containers,
 				publicKey: publicKey,
 				users: c.users,
