@@ -1,4 +1,5 @@
 FROM mhart/alpine-node:8
+RUN apk update && apk add davfs2
 RUN mkdir /app
 RUN mkdir /assets
 RUN mkdir /shared-data
