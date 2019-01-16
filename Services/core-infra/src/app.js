@@ -309,6 +309,59 @@ async function createQueryContainer(details) {
 			}
 }
 
+async function createGenericContainer(details) {
+
+	let cmd = ""
+	//console.log(details.users)
+	const user = {
+		[[details.user.email]]: {
+			'publicKey': encodeBase64(details.user.keys.raw.public)
+		}
+	}
+	details.adaptors.map(a => {
+		const host = a.env.filter(e => {
+			return e.name == "NAME"
+		})
+		if (isEmpty(host)) return []
+		return {
+			host: host[0].value,
+			port: a.ports[0].containerPort
+		}
+	}).forEach(a => {
+		if (isEmpty(a)) return	
+		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+	})
+	
+	const users = encodeBase64(JSON.stringify(user))
+	cmd += " echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p " + details.port + " -u /assets/jwtusers.json"
+	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
+	return {
+				"name": dockerNames.getRandomName().replace('_','-'),
+				"image": "recap/process-datanet-adaptor:v0.1",
+				"imagePullPolicy": "Always",
+				"ports": [
+					{
+						"containerPort": details.port
+					}
+				],
+				"env": [
+					{ "name": "PUBLICKEY", "value": details.publicKey},
+					{ "name": "JWTUSERS", "value": users }
+				],
+				"volumeMounts": [
+					{ "name": "shared-data", "mountPath": "/shared-data" }
+				],
+				"securityContext": {
+					"privileged": true,
+						"capabilities": {
+							"add": [ "SYS_ADMIN" ]
+						}
+				},
+				"command": ["/bin/sh", "-c" ],
+				"args": [cmd]
+			}
+}
+
 async function createDatanetContainer(details) {
 
 	let cmd = ""
@@ -829,6 +882,13 @@ app.delete(api + '/infrastructure/:id', checkToken, async(req, res) => {
 
 })
 
+const getNextPort = function() {
+	let port = 9000
+	return function() {
+		return port++
+	}
+}()
+
 app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	const infra = req.body
 	let cntPort = 3001
@@ -968,6 +1028,25 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				namespace: req.user.namespace,
 				targetPort: 8888,
 				type: 'jupyter'
+			})
+			uicnt.push(u)
+			services.push(service)
+		}
+		if (c.type == "generic") {
+			const port = getNextPort()
+			const u = await createGenericContainer({
+				adaptors: containers,
+				publicKey: publicKey,
+				port: port,
+				users: c.users,
+				user: req.user
+			})
+			const service = createService({
+				name: infra.name + '-' + c.name,
+				iname: infra.name,
+				namespace: req.user.namespace,
+				targetPort: port,
+				type: 'generic'
 			})
 			uicnt.push(u)
 			services.push(service)
