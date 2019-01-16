@@ -8,6 +8,9 @@ yarn-error.log*
 # test-data
 test-data
 
+# tokens
+*.tokens
+
 # deployments
 *deployments*
 

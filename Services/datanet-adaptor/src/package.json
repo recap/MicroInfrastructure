@@ -1,0 +1,40 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.5.2",
+    "body-parser": "1.18.3",
+    "command-line-args": "^5.0.2",
+    "crypto": "^1.0.1",
+    "docker-names": "^1.1.1",
+    "events": "^3.0.0",
+    "express": "^4.16.4",
+    "fs": "0.0.1-security",
+    "http": "0.0.0",
+    "jquery": "^3.3.1",
+    "jsonwebtoken": "^8.4.0",
+    "k8s": "^0.4.15",
+    "keypair": "^1.0.1",
+    "md5": "^2.2.1",
+    "mongodb": "^3.1.10",
+    "mongoose": "^5.3.13",
+    "node-forge": "^0.7.6",
+    "path": "^0.12.7",
+    "persistent-cache-object": "^0.1.8",
+    "randomstring": "^1.1.5",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.2",
+    "socket.io": "^2.1.1",
+    "ssh2": "^0.6.1",
+    "underscore": "^1.9.1",
+    "webdav": "^2.2.0",
+    "yaml": "^1.0.3"
+  }
+}

@@ -1,0 +1,9 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: basic-ingress
+  namespace: process-core
+spec:
+  backend:
+    serviceName: core-infra
+    servicePort: 4200
