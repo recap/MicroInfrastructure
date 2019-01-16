@@ -336,7 +336,7 @@ async function createGenericContainer(details) {
 	cmd += "  echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p " + details.port + " -u /assets/jwtusers.json"
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-datanet-adaptor:v0.1",
+				"image": details.image,
 				"imagePullPolicy": "Always",
 				"ports": [
 					{
@@ -1037,6 +1037,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				publicKey: publicKey,
 				port: port,
 				users: c.users,
+				image: c.image,
 				user: req.user
 			})
 			const service = createService({
