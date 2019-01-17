@@ -223,6 +223,55 @@ async function createDispelContainer(details) {
 			}
 }
 
+async function createNextcloudContainer(details) {
+	let cmd = ""
+	const user = {
+		[[details.user.email]]: {
+			'publicKey': encodeBase64(details.user.keys.raw.public)
+		}
+	}
+	const users = encodeBase64(JSON.stringify(user))
+
+	details.adaptors.map(a => {
+		const host = a.env.filter(e => {
+			return e.name == "NAME"
+		})
+		if (isEmpty(host)) return []
+		return {
+			host: host[0].value,
+			port: a.ports[0].containerPort
+		}
+	}).forEach(a => {
+		if (isEmpty(a)) return	
+		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
+	})
+	cmd += " /entrypoint.sh apache2-foreground "
+	return {
+				"name": dockerNames.getRandomName().replace('_','-'),
+				"image": "recap/process-nextcloud:latest",
+				"imagePullPolicy": "Always",
+				"ports": [
+					{
+						"containerPort": 80
+					}
+				],
+				"env": [
+					{ "name": "JWTUSERS", "value": users }
+				],
+				"volumeMounts": [
+					{ "name": "shared-data", "mountPath": "/shared-data" }
+				],
+				"securityContext": {
+					"privileged": true,
+						"capabilities": {
+							"add": [ "SYS_ADMIN" ]
+						}
+				},
+				"command": ["/bin/sh", "-c" ],
+				"args": [cmd]
+			}
+}
+
 async function createJupyterContainer(details) {
 	let cmd = ""
 	const user = {
@@ -993,6 +1042,22 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				namespace: req.user.namespace,
 				targetPort: 8001,
 				type: 'webdav-jwt'
+			})
+			uicnt.push(u)
+			services.push(service)
+		}
+		if (c.type == "nextcloud") {
+			const u = await createNextcloudContainer({
+				adaptors: containers,
+				users: c.users,
+				user: req.user
+			})
+			const service = createService({
+				name: infra.name + '-nextcloud',
+				iname: infra.name,
+				namespace: req.user.namespace,
+				targetPort: 80,
+				type: 'nextcloud'
 			})
 			uicnt.push(u)
 			services.push(service)
