@@ -5,7 +5,7 @@ Include: yum wget
 %setup
    # commands to be executed on host outside container during bootstrap
    cp ./packages/cudnn-8.0-linux-x64-v6.0.tgz $SINGULARITY_ROOTFS
-   cp ./requirements.txt $SINGULARITY_ROOTFS
+   cp ./requirements $SINGULARITY_ROOTFS
 %test
    # commands to be executed within container at close of bootstrap process
    exec /usr/bin/python --version
@@ -34,6 +34,6 @@ Include: yum wget
    pip install --upgrade pip
    #pip install --upgrade https://storage.googleapis.com/tensorflow/linux/gpu/tensorflow_gpu-1.4.1-cp35-cp35m-linux_x86_64.whl
    #pip install keras
-   pip install -r /requirements.txt
+   pip install -r /requirements
    # in-container bind points for shared filesystems
    mkdir -p /extra /xdisk /uaopt /cm/shared
