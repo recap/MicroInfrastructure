@@ -382,7 +382,8 @@ async function createGenericContainer(details) {
 	})
 	
 	const users = encodeBase64(JSON.stringify(user))
-	cmd += "  echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p " + details.port + " -u /assets/jwtusers.json"
+	cmd += " " 
+	cmd += details.cmd
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
 				"image": details.image,
@@ -958,7 +959,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 
 		cntPort += 1
 		const container = createSshStorageContainer({
-			name: adaptor.host,
+			name: adaptor.name,
 			namespace: req.user.namespace,
 			containerPort: cntPort,
 			sshHost: adaptor.host,
@@ -1096,11 +1097,12 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			services.push(service)
 		}
 		if (c.type == "generic") {
-			const port = getNextPort()
+			const port = c.port || getNextPort()
 			const u = await createGenericContainer({
 				adaptors: containers,
 				publicKey: publicKey,
 				port: port,
+				cmd: c.cmd,
 				users: c.users,
 				image: c.image,
 				user: req.user

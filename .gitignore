@@ -5,6 +5,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+#archives
+*.tar.gz
+*.tgz
+*.zip
+
+#images
+*.simg
+
 # DBs
 *.db
 

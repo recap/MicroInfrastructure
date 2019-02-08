@@ -1,37 +1,150 @@
 kind: Service
 apiVersion: v1
 metadata:
-  name: test-001
-  namespace: cushing-001
+  name: usecase-001-medical-preprocessing
+  namespace: uc1
   labels:
-    app: test-001
+    app: usecase-001
+    type: generic
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: "8888"
+      targetPort: "8888"
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-nextcloud
+  namespace: uc1
+  labels:
+    app: usecase-001
+    type: nextcloud
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: 80
+      targetPort: 80
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-query
+  namespace: uc1
+  labels:
+    app: usecase-001
+    type: query
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: 8002
+      targetPort: 8002
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-dispel
+  namespace: uc1
+  labels:
+    app: usecase-001
+    type: dispel
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-datanet
+  namespace: uc1
+  labels:
+    app: usecase-001
+    type: datanet
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: 8003
+      targetPort: 8003
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-jupyter
+  namespace: uc1
+  labels:
+    app: usecase-001
+    type: jupyter
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: 8888
+      targetPort: 8888
+  type: NodePort
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-ht
+  namespace: uc1
+  labels:
+    app: usecase-001
     type: webdav
 spec:
   selector:
-    app: test-001
+    app: usecase-001
   ports:
     - port: 8000
       targetPort: 8000
   type: NodePort
-
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: usecase-001-jwt
+  namespace: uc1
+  labels:
+    app: usecase-001
+    type: webdav-jwt
+spec:
+  selector:
+    app: usecase-001
+  ports:
+    - port: 8001
+      targetPort: 8001
+  type: NodePort
 ---
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: test-001
-  namespace: cushing-001
+  name: usecase-001
+  namespace: uc1
   labels:
-    name: test-001
+    name: usecase-001
 spec:
   selector:
     matchLabels:
-      app: test-001
+      app: usecase-001
   template:
     metadata:
       labels:
-        app: test-001
+        app: usecase-001
     spec:
-      hostname: test-001
+      nodeSelector:
+        location: uva
+      hostname: usecase-001
       volumes:
         - name: ssh-key
           secret:
@@ -40,10 +153,68 @@ spec:
           emptyDir:
             {}
       containers:
-        - name: cocky-torvalds
+        - name: musing-northcutt
           image: recap/process-sshfs:v0.1
+          imagePullPolicy: Always
           ports:
-            - containerPort: 3001
+            - containerPort: 3005
+          env:
+            - name: STORAGE_NAME
+              value: mynativestorage
+            - name: NAME
+              value: mynativestorage
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - /bin/mkdir -p /shared-data/$STORAGE_NAME && cd /root/fileagent &&
+              node fileagent /data/ /shared-data/ 3005
+        - name: agitated-liskov
+          image: recap/process-sshfs:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3002
+          env:
+            - name: SSH_USER
+              value: di39nox
+            - name: SSH_HOST
+              value: data03.process-project.eu
+            - name: SSH_PORT
+              value: "22"
+            - name: SSH_PATH
+              value: /mnt/dss/process/UC1
+            - name: NAME
+              value: dss.lrz.de
+          volumeMounts:
+            - name: ssh-key
+              mountPath: /ssh
+              readOnly: true
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - /bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat
+              /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
+              /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
+              $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd
+              /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/
+              3002
+        - name: cocky-cori
+          image: recap/process-sshfs:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3003
           env:
             - name: SSH_USER
               value: cushing
@@ -52,7 +223,9 @@ spec:
             - name: SSH_PORT
               value: "22"
             - name: SSH_PATH
-              value: /nfs/scratch/cushing
+              value: /nfs/scratch/process/UC1
+            - name: NAME
+              value: lisa.surfsara.nl
           volumeMounts:
             - name: ssh-key
               mountPath: /ssh
@@ -72,12 +245,14 @@ spec:
               /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
               /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
-              /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
-              && node fileagent /data/ /shared-data/$SSH_HOST/ 3001
-        - name: wizardly-nobel
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd
+              /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/
+              3003
+        - name: unruffled-yonath
           image: recap/process-sshfs:v0.1
+          imagePullPolicy: Always
           ports:
-            - containerPort: 3002
+            - containerPort: 3004
           env:
             - name: SSH_USER
               value: plgcushing
@@ -86,7 +261,9 @@ spec:
             - name: SSH_PORT
               value: "22"
             - name: SSH_PATH
-              value: /net/archive/groups/plggprocess
+              value: /net/archive/groups/plggprocess/UC1
+            - name: NAME
+              value: pro.cyfronet.pl
           volumeMounts:
             - name: ssh-key
               mountPath: /ssh
@@ -106,19 +283,31 @@ spec:
               /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600
               /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no
               $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH
-              /data && /bin/mkdir /shared-data/$SSH_HOST && cd /root/fileagent
-              && node fileagent /data/ /shared-data/$SSH_HOST/ 3002
-        - name: kind-rhodes
-          image: recap/process-webdav:v0.2
+              /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd
+              /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/
+              3004
+        - name: stoic-shaw
+          image: recap/process-medical-preprocessing:latest
+          imagePullPolicy: Always
           ports:
-            - containerPort: 3000
+            - containerPort: "8888"
           env:
-            - name: AUTH_TYPE
-              value: Digest
-            - name: USERNAME
-              value: user001
-            - name: PASSWORD
-              value: pass001
+            - name: PUBLICKEY
+              value: |
+                -----BEGIN PUBLIC KEY-----
+                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6JqKzZkFMCNpPyE224I
+                JKKp0qGXIip4hn5r7+VONIxqV3MIvNBl3fpRLT8Zg3beIWIJQjXYmfikG6iOpWfL
+                Fn2oovmKaur4l9Xb5oKWor5xHAp8lm4V19qzCcJsS0HirxVpLvR2x8s6VdtKFhGG
+                z2bUpRjVGX2hfGntsQYloqGGCLAETgZoUJAzEjKlctL8iP9q3D3Zx3I9NNuY1DrS
+                jXiweHn6MrKBT0CDui7FTpkuZHOs0cmaxbGBaHJ5jcmBqBg2fLKvMieAaHzX8V79
+                qRJ/tOOAksAtz9O4bvbVHFlAvfuuFOatSzlKL/8uGFvn+AIyoux78F1A/aMZZvAt
+                4QIDAQAB
+                -----END PUBLIC KEY-----
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
           securityContext:
             privileged: true
             capabilities:
@@ -128,12 +317,269 @@ spec:
             - /bin/sh
             - -c
           args:
-            - " /bin/mkdir /data/lisa.surfsara.nl && echo 'http://localhost:3001
-              u p' >> /etc/davfs2/secrets && mount -t davfs
-              http://localhost:3001 /data/lisa.surfsara.nl &&  /bin/mkdir
-              /data/pro.cyfronet.pl && echo 'http://localhost:3002 u p' >>
+            - " /bin/mkdir -p /data/mynativestorage && echo
+              'http://localhost:3005 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3005 /data/mynativestorage &&  /bin/mkdir
+              -p /data/dss.lrz.de && echo 'http://localhost:3002 u p' >>
               /etc/davfs2/secrets && mount -t davfs http://localhost:3002
-              /data/pro.cyfronet.pl &&  cd /root/webdavserver && node
-              webdavserver.js"
-
-
+              /data/dss.lrz.de &&  /bin/mkdir -p /data/lisa.surfsara.nl && echo
+              'http://localhost:3003 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3003 /data/lisa.surfsara.nl &&  /bin/mkdir
+              -p /data/pro.cyfronet.pl && echo 'http://localhost:3004 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3004
+              /data/pro.cyfronet.pl &&  python -m SimpleHTTPServer 8888"
+        - name: tender-spence
+          image: recap/process-nextcloud:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          env:
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3005 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3005
+              /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/dss.lrz.de && echo
+              'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3002 /data/dss.lrz.de &&  echo $JWTUSERS |
+              base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/lisa.surfsara.nl && echo 'http://localhost:3003 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3003
+              /data/lisa.surfsara.nl &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/pro.cyfronet.pl && echo
+              'http://localhost:3004 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3004 /data/pro.cyfronet.pl
+              &&  /entrypoint.sh apache2-foreground "
+        - name: unruffled-einstein
+          image: recap/process-core-query:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4300
+          env:
+            - name: APPCONFIG
+              value: W3sibmFtZSI6ImRhdGEwMy5wcm9jZXNzLXByb2plY3QuZXUiLCJob3N0IjoibG9jYWxob3N0IiwicG9ydCI6MzAwMiwidHlwZSI6IndlYmRhdiIsIm1vdW50IjoiL21udC9kc3MvcHJvY2Vzcy9VQzEifSx7Im5hbWUiOiJsaXNhLnN1cmZzYXJhLm5sIiwiaG9zdCI6ImxvY2FsaG9zdCIsInBvcnQiOjMwMDMsInR5cGUiOiJ3ZWJkYXYiLCJtb3VudCI6Ii9uZnMvc2NyYXRjaC9wcm9jZXNzL1VDMSJ9LHsibmFtZSI6InByby5jeWZyb25ldC5wbCIsImhvc3QiOiJsb2NhbGhvc3QiLCJwb3J0IjozMDA0LCJ0eXBlIjoid2ViZGF2IiwibW91bnQiOiIvbmV0L2FyY2hpdmUvZ3JvdXBzL3BsZ2dwcm9jZXNzL1VDMSJ9XQ==
+            - name: PUBLICKEY
+              value: |
+                -----BEGIN PUBLIC KEY-----
+                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6JqKzZkFMCNpPyE224I
+                JKKp0qGXIip4hn5r7+VONIxqV3MIvNBl3fpRLT8Zg3beIWIJQjXYmfikG6iOpWfL
+                Fn2oovmKaur4l9Xb5oKWor5xHAp8lm4V19qzCcJsS0HirxVpLvR2x8s6VdtKFhGG
+                z2bUpRjVGX2hfGntsQYloqGGCLAETgZoUJAzEjKlctL8iP9q3D3Zx3I9NNuY1DrS
+                jXiweHn6MrKBT0CDui7FTpkuZHOs0cmaxbGBaHJ5jcmBqBg2fLKvMieAaHzX8V79
+                qRJ/tOOAksAtz9O4bvbVHFlAvfuuFOatSzlKL/8uGFvn+AIyoux78F1A/aMZZvAt
+                4QIDAQAB
+                -----END PUBLIC KEY-----
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo
+              $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js
+              --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u
+              /assets/jwtusers.json
+        - name: affectionate-jepsen
+          image: recap/process-dispel:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3005 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3005
+              /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/dss.lrz.de && echo
+              'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3002 /data/dss.lrz.de &&  echo $JWTUSERS |
+              base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/lisa.surfsara.nl && echo 'http://localhost:3003 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3003
+              /data/lisa.surfsara.nl &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/pro.cyfronet.pl && echo
+              'http://localhost:3004 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3004 /data/pro.cyfronet.pl &&  catalina.sh
+              run"
+        - name: compassionate-agnesi
+          image: recap/process-datanet-adaptor:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8003
+          env:
+            - name: PUBLICKEY
+              value: |
+                -----BEGIN PUBLIC KEY-----
+                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo6JqKzZkFMCNpPyE224I
+                JKKp0qGXIip4hn5r7+VONIxqV3MIvNBl3fpRLT8Zg3beIWIJQjXYmfikG6iOpWfL
+                Fn2oovmKaur4l9Xb5oKWor5xHAp8lm4V19qzCcJsS0HirxVpLvR2x8s6VdtKFhGG
+                z2bUpRjVGX2hfGntsQYloqGGCLAETgZoUJAzEjKlctL8iP9q3D3Zx3I9NNuY1DrS
+                jXiweHn6MrKBT0CDui7FTpkuZHOs0cmaxbGBaHJ5jcmBqBg2fLKvMieAaHzX8V79
+                qRJ/tOOAksAtz9O4bvbVHFlAvfuuFOatSzlKL/8uGFvn+AIyoux78F1A/aMZZvAt
+                4QIDAQAB
+                -----END PUBLIC KEY-----
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " /bin/mkdir -p /data/mynativestorage && echo
+              'http://localhost:3005 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3005 /data/mynativestorage &&  /bin/mkdir
+              -p /data/dss.lrz.de && echo 'http://localhost:3002 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3002
+              /data/dss.lrz.de &&  /bin/mkdir -p /data/lisa.surfsara.nl && echo
+              'http://localhost:3003 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3003 /data/lisa.surfsara.nl &&  /bin/mkdir
+              -p /data/pro.cyfronet.pl && echo 'http://localhost:3004 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3004
+              /data/pro.cyfronet.pl &&   echo $JWTUSERS | base64 -d >
+              /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt &&
+              cd /app/ && node app.js  -c /tmp/publicKey.txt -p 8003 -u
+              /assets/jwtusers.json"
+        - name: sleepy-curie
+          image: recap/process-jupyter:v0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8888
+          env:
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+            - name: JPASSWD
+              value: Yy5Ob3RlYm9va0FwcC5wYXNzd29yZCA9IHUnc2hhMTo2YzgxYzBmMTdkZjE6OWZiYjk1MTc1MzM3ZDcyYTQ1ZDQ2MmQ2ZWNjNDI0ZjU0ZmQxNTNjYic=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3005 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3005
+              /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/dss.lrz.de && echo
+              'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3002 /data/dss.lrz.de &&  echo $JWTUSERS |
+              base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/lisa.surfsara.nl && echo 'http://localhost:3003 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3003
+              /data/lisa.surfsara.nl &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/pro.cyfronet.pl && echo
+              'http://localhost:3004 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3004 /data/pro.cyfronet.pl &&  echo
+              $JPASSWD | base64 -d >>
+              /home/jovyan/.jupyter/jupyter_notebook_config.py &&  cd /data &&
+              jupyter lab --allow-root"
+        - name: clever-jones
+          image: recap/process-webdav:v0.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: HTDIGEST
+              value: user:jsdav:98896c65e2912eb180e87a1c1955e16a
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $HTDIGEST > /assets/htusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3005 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3005
+              /data/mynativestorage &&  echo $HTDIGEST > /assets/htusers &&
+              /bin/mkdir -p /data/dss.lrz.de && echo 'http://localhost:3002 u p'
+              >> /etc/davfs2/secrets && mount -t davfs http://localhost:3002
+              /data/dss.lrz.de &&  echo $HTDIGEST > /assets/htusers &&
+              /bin/mkdir -p /data/lisa.surfsara.nl && echo
+              'http://localhost:3003 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3003 /data/lisa.surfsara.nl &&  echo
+              $HTDIGEST > /assets/htusers && /bin/mkdir -p /data/pro.cyfronet.pl
+              && echo 'http://localhost:3004 u p' >> /etc/davfs2/secrets &&
+              mount -t davfs http://localhost:3004 /data/pro.cyfronet.pl &&  cd
+              /root/webdavserver && node webdavserver-ht.js"
+        - name: suspicious-feistel
+          image: recap/process-webdav:v0.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8001
+          env:
+            - name: JWTUSERS
+              value: eyJ1YzFAcHJvY2Vzcy1wcm9qZWN0LmV1Ijp7InB1YmxpY0tleSI6IkxTMHRMUzFDUlVkSlRpQlNVMEVnVUZWQ1RFbERJRXRGV1MwdExTMHRDazFKU1VKRFowdERRVkZGUVhreU5TdFpTMjR5VEVONlkwdFFWVWxUZG5KYU9FWjZiSEJ0VlZRNU56SXZiRWRJYUVoTGFVZFBSV0ZIWkRaV2JEUkJaVmxoYWpGMU1XMURkUXBTY0ZsdFJIcE1aR2s0YkVWbmJrTmtNMHhYVW5sdlVFRnBiV1YxVjBWQlpUSTRWV1ZSVkVSbWVVaGpkbmMxUkRWYVJURlVWVkI2U1hkM1VYWm9aWFpyY0M5V01UazRkWGtLWm5sa1YwWTRSbVEyTlRWT1owSkJMMmR0V0RWR2JpOTZlRFZxVTFjclRHaENXbEZXYWxwR1lYaHhWM1ZCTWxseFZFNXZka05IUTBoWE1FdENURTFZYlhkM1NIRjRhMVkxQ2xkWlMzbExUREpQUkZoVVZXZG9UVTVsTDNwemNYZHNjU3R4ZEZsa1NHbzBWV3B4UWpjMVNXOHhOV2xaVWpkVmRWSkNaREozTlRsNmVVVjJWMFoyTmpKVFozWTNSR1UxWlFvM09GUlZXa3B4UlcxaVMzWTFNekZ6WVhWT1dUVjJNbkZXYkZKV2FFcGpPRWwzWlhwTWFpOWhOVmRXTURWRGRuZEdUMFZCTVcwelJETXlTVU4wUjI1UmJGRkpSRUZSUVVJS0xTMHRMUzFGVGtRZ1VsTkJJRkJWUWt4SlF5QkxSVmt0TFMwdExRbz0ifX0=
+          volumeMounts:
+            - name: shared-data
+              mountPath: /shared-data
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/mynativestorage && echo 'http://localhost:3005 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3005
+              /data/mynativestorage &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/dss.lrz.de && echo
+              'http://localhost:3002 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3002 /data/dss.lrz.de &&  echo $JWTUSERS |
+              base64 -d > /assets/jwtusers && /bin/mkdir -p
+              /data/lisa.surfsara.nl && echo 'http://localhost:3003 u p' >>
+              /etc/davfs2/secrets && mount -t davfs http://localhost:3003
+              /data/lisa.surfsara.nl &&  echo $JWTUSERS | base64 -d >
+              /assets/jwtusers && /bin/mkdir -p /data/pro.cyfronet.pl && echo
+              'http://localhost:3004 u p' >> /etc/davfs2/secrets && mount -t
+              davfs http://localhost:3004 /data/pro.cyfronet.pl &&  cd
+              /root/webdavserver && node webdavserver-jwt.js"
