@@ -1,7 +1,5 @@
-BootStrap: yum
-OSVersion: 7
-MirrorURL: http://mirror.centos.org/centos-%{OSVERSION}/%{OSVERSION}/os/$basearch/
-Include: yum wget
+BootStrap: docker
+From: centos:7
 %setup
    # commands to be executed on host outside container during bootstrap
    cp ./packages/cudnn-8.0-linux-x64-v6.0.tgz $SINGULARITY_ROOTFS
