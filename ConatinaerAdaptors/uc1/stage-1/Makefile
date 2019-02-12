@@ -15,7 +15,7 @@ run-dev: build-docker
 build-singularity:
 	sudo singularity build process-uc1-1.simg Singularity
 
-run-singularity:
+run-singularity: build-singularity
 	singularity run --nv process-uc1-1.simg
 
 
