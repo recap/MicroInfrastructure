@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-singularity
+  namespace: default
+spec:
+  selector:
+    name: core-singularity
+  ports:
+  - port: 9876
+    targetPort: 9876
+    #nodePort: 50001
+    #  type: NodePort
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: core-singularity
+  namespace: default
+  labels:
+      name: core-singularity
+spec:
+    hostname: test
+    #nodeSelector:
+    #   type: core
+    volumes:
+    - name: image-store
+      flexVolume:
+          driver: ceph.rook.io/rook
+          fsType: ceph
+          options:
+            fsName: myfs # name of the filesystem specified in the filesystem CRD.
+            clusterNamespace: rook-ceph
+            path: /
+    containers:
+    - name: core-singularity
+      image: recap/process-core-singularity:v0.1
+      volumeMounts:
+        - name: image-store
+          mountPath: /data
+      ports:
+          - containerPort: 9876
+      command:
+          - sleep
+          - "3600"

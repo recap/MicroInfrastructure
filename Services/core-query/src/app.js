@@ -12,11 +12,13 @@ const bodyParser = require('body-parser')
 //const io = require('socket.io')(server)
 const request = require('request')
 const rp = require('request-promise')
+const redis = require('redis')
 const events = require('events')
 const mongoose = require('mongoose')
 const randomstring = require('randomstring')
 const jwt = require('jsonwebtoken')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const PersistentObject = require('persistent-cache-object');
 const eventEmitter = new events.EventEmitter()
@@ -31,7 +33,8 @@ const cmdOptions = [
 	{ name: 'dbpass', type: String},
 	{ name: 'host', alias: 'h', type: String},
 	{ name: 'config', type: String},
-	{ name: 'users', alias: 'u', type: String}
+	{ name: 'users', alias: 'u', type: String},
+	{ name: 'redis', type: String }
 ]
 
 const options = cmdArgs(cmdOptions)
@@ -71,16 +74,25 @@ app.get('/', function(req, res,next) {
 })
 
 const api = '/api/v1'
+const interfaces = os.networkInterfaces();
+const addresses = ['127.0.0.1'];
+for (const k in interfaces) {
+    for (const k2 in interfaces[k]) {
+        const address = interfaces[k][k2];
+        if (address.family === 'IPv4' && !address.internal) {
+            addresses.push(address.address);
+        }
+    }
+}
 
-
-// check mongo
-/* const url = "mongodb://core-infra:" + options.dbpass + "@" + options.mongo + ":27017/process"
-mongoose.connect(url)
-const db = mongoose.connection
-db.on('error', console.error.bind(console, "conn error"))
-db.once('open', () => {
-	console.log("mongodb ok");
-})*/
+const serverPort = options.port || 4300
+const redisHost = (options.redis) ? options.redis.split(':')[0] : '127.0.0.1'
+const redisPort = (options.redis) ? (options.redis.split(':')[1] || 6379) : 6379
+const client = redis.createClient({
+	host: redisHost,
+	port: redisPort
+})
+const states = new PersistentObject('./states.db')
 
 function encodeBase64(s) {
 	return new Buffer(s).toString('base64')
@@ -103,26 +115,30 @@ function isEmpty(arr) {
 }
 
 function checkToken(req, res, next) {
+	if (req.user) {
+		next()
+		return
+	}
 	const token = req.headers['x-access-token']
 	if (!token) {
-		concole.log("L")
+		console.log("L")
 		res.status(403).send()
 		return
 	}
 	const preDecoded = jwt.decode(token)
 	if (!preDecoded) {
-		concole.log("G")
+		console.log("G")
 		res.status(403).send()
 	}
-	const user = preDecoded.email
+	const user = preDecoded.email || preDecoded.user
 	if(!users[user]) {
-		concole.log("G")
+		console.log("G")
 		res.status(403).send()
 	}
 
 	const cert = users[user].decodedPublicKey
 	if (!cert) {
-		concole.log("K")
+		console.log("K")
 		res.status(403).send()
 	}
 
@@ -139,6 +155,10 @@ function checkToken(req, res, next) {
 }
 
 function checkAdminToken(req, res, next) {
+	if (req.user) {
+		next()
+		return
+	}
 	const token = req.headers['x-access-token']
 	if (!token) {
 		res.status(403).send()
@@ -146,11 +166,11 @@ function checkAdminToken(req, res, next) {
 	}
 	jwt.verify(token, publicKey, {algorithms: ['RS256']}, (err, decoded) => {
 		if (err) {
-			res.status(403).send()
+			next()
 			return
 		}
 		if (!(decoded.user == 'admin')) {
-			res.status(403).send()
+			next()
 			return
 		}
 		req['user'] = decoded.user
@@ -252,78 +272,16 @@ async function loadRegistry() {
 	})
 }
 
-// mongodb
-/*const userSchema = mongoose.Schema({
-	email: String,
-	namespace: String,
-	keys: Object
-})
-
-const User = mongoose.model('Users', userSchema)
-
-async function checkMongo() {
-	const url = "mongodb://core-infra:core-infra@" + options.mongo + ":27017/process"
-	console.log(url)
-	mongoose.connect(url)
-	const db = mongoose.connection
-	db.on('error', console.error.bind(console, "conn error"))
-	db.once('open', () => {
-		console.log('connected')
-	})
-}*/
-
-// rabbitmq
-/*async function startMq() {
-	const conn = await amqp.connect('amqp://' + options.amqp)
-	const mq = await conn.createChannel()
-	const q = await mq.assertQueue(null, {
-		autoDelete: true
-	})
-
-	const rk = 'audit.transactions.*'
-	const ex = 'audit'
-	mq.assertExchange('audit', 'topic', {durable: false})
-	mq.assertExchange('log', 'topic', {durable: false})
-	console.log("Binding queue " + q.queue + " to rk: " + rk)
-	await mq.bindQueue(q.queue, ex, rk)
-	console.log("Binding queue " + l.queue + " to rk: log.*")
-	await mq.bindQueue(l.queue, 'log', 'log.info.*')
-
-	mq.consume(q.queue, (msg) => {
-		eventEmitter.emit('audit_log', msg)
-	})
-}*/
-
-// websockets
-/*io.on('connection', function(client) {
-    console.log('Client connected...')
-
-    client.on('join', function(data) {
-	        console.log(data)
-	})
-
-	eventEmitter.on('audit_log', (msg) => {
-		const parts = msg.content.toString().split('.')
-		const content = new Buffer(parts[0], 'base64').toString()
-		console.log(content + " Signiture: " + parts[1])
-		client.emit('audit_log', content)
-	})
-})*/
-
 // api urls
-app.get(api + '/test-user', checkToken, async (req, res) => {
+app.get(api + '/user', [checkAdminToken, checkToken], (req, res) => {
 	res.status(200).send(req.user)
 })
 
-app.get(api + '/test-service', async (req, res) => {
-	res.status(200).send(req.user)
-})
-
-app.get(api + '/list', checkToken, async (req, res) => {
+app.get(api + '/list', [checkAdminToken, checkToken], async (req, res) => {
 	res.status(200).send(xedni)
 })
 
-app.get(api + '/find/:id', checkToken, async (req, res) => {
+app.get(api + '/find/:id', [checkAdminToken, checkToken], async (req, res) => {
 	const filename = req.params.id
 	const record = xedni[filename]
 	if (!record) {
@@ -333,50 +291,93 @@ app.get(api + '/find/:id', checkToken, async (req, res) => {
 	res.status(200).send(record)
 })
 
-app.post(api + '/dummywh', (req, res) => {
-	console.log("webhook called: " + JSON.stringify(req.body))
+app.get(api + '/status/:id', [checkAdminToken, checkToken], (req, res) => {
+	const id = req.params.id
+	if (!id) {
+		res.status(400).send()
+		return
+	}
+	if (!states[id]) {
+		res.status(404).send()
+		return
+	}
+	res.status(200).send(states[id])
+})
+
+app.post(api + '/test-webhook/', (req, res) => {
 	res.status(200).send()
+	console.log("WEBHOOK: " + JSON.stringify(req.body))
 })
 
-/*
- * template json:
- * {
- *	from: url
- *	to: url
- *	schedule: date
- *	webhook: url
- *	}
- */
-app.post(api + '/copy', checkToken, async(req, res) => {
-	const copyReq = req.body
-	setTimeout(async function() {
-		const response = {
-			result: 'ok'
-		}
-
-		await rp({
-			method: 'POST',
-			uri: copyReq.webhook,
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify(response)
+app.post(api + '/callback/:id', (req, res) => {
+	const id = req.params.id
+	const body = req.body
+	console.log('callback: ' + JSON.stringify(body))
+	res.status(200).send()
+	if (!states[id]) {
+		return
+	}
+	states[id]['status'] = body
+	if (body.status == 'done') {
+		const uri = states[id].details.cmd.webhook.url
+		delete states[id].details.callback
+		console.log('post to webhook uri: ' + uri)
+		request.post(uri, { json: states[id] }, (err, res) => {
+			if (err) console.log(err)
 		})
-
-	}, 1000)
-	res.status(200).send(copyReq)
+	}
 })
 
-/* app.put(api + '/test-admin', checkAdminToken, async(req, res) => {
-	res.status(200).send(req.user)
-})*/
+// api urls
+app.post(api + '/copy', [checkAdminToken, checkToken], async (req, res) => {
+	if (!Array.isArray(req.body)) {
+		res.status(400).send()
+		return
+	}
+	req.body.forEach(copyReq => {
+		if (copyReq.cmd.type == 'copy') {
+			// check delegate adaptor
+			const key = copyReq.cmd.src.type + ":" + copyReq.cmd.src.host
+			client.hgetall(key, async (err, ep) => {
+				if (err) {
+					console.log(err)
+					return
+				}
+				copyReq.callback = {
+					port: serverPort,
+					addresses: addresses,
+					path: '/api/v1/callback/'
+				}
+				const ips = ep.ips.split(',')
+				for(i = 0; i < ips.length; i++) {
+					const ip = ips[i]
+					const url = ep.url.replace('#IPIP#', ip)
+					console.log("trying ep: " + url)
+					try {
+						const result = await rp.post(url, {json: copyReq })
+						if (result) {
+							states[copyReq.id] = {
+								status: result,
+								details: copyReq
+							}
+							break
+						}
+					} catch (err) {}
+				}
+			})
+		}
+	})
+	res.status(200).send('OK')
+})
 
-//const myToken = generateToken("r.s.cushing@uva.nl", "cushing-001")
+//const myToken = generateToken("admin", "cushing-001")
 //console.log(myToken)
 
 loadRegistry()
 
+
+
 //console.log("Starting secure server...")
 //httpsServer.listen(options.port || 4343)
 console.log("Starting server...")
-httpServer.listen(options.port || 4300)
+httpServer.listen(serverPort)

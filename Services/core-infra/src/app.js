@@ -594,6 +594,47 @@ function createSshStorageContainer(details) {
 			}
 }
 
+function createScpContainer(details) {
+	return {
+				"name": dockerNames.getRandomName().replace('_','-'),
+				"image": "recap/process-scp2scp:v0.1",
+				"imagePullPolicy": "Always",
+				"ports": [
+					{
+						"containerPort": details.containerPort
+					}
+				],
+				"env": [
+					{ "name": "NAME", "value": details.name }
+
+				],
+				"volumeMounts": [
+					{ "name": "ssh-key", "mountPath": "/ssh", "readOnly": true },
+					{ "name": "shared-data", "mountPath": "/shared-data" }
+				],
+				"command": ["/bin/sh", "-c" ],
+				"args": [ "/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600 /root/.ssh/id_rsa && cd /root/app && node app.js --adaptorId scp:" + details.name +" --sshPrivateKey /root/.ssh/id_rsa -p " + details.containerPort + " "]
+			}
+}
+
+function createRedisContainer(details) {
+	return {
+				"name": "redis",
+				"image": "redis",
+				"imagePullPolicy": "Always",
+				"ports": [
+					{
+						"containerPort": details.containerPort || 6379
+					}
+				],
+				"env": [
+					{ "name": "NAME", "value": details.name }
+
+				],
+				"command": [ "redis-server" ],
+			}
+}
+
 function createVolume(details) {
 	// return default pod volumes
 	return  [
@@ -1015,6 +1056,19 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	// convert ui descriptions to k8s container list
 	const uiPromises = infra.logicContainers.map(async(c, index) => {
 		const uicnt = []
+		if (c.type == "redis") {
+			const u = await createRedisContainer({
+				name: "redis"
+			})
+			uicnt.push(u)
+		}
+		if (c.type == "scp") {
+			const u = createScpContainer({
+				name: c.name,
+				containerPort: c.port || getNextPort() 
+			})
+			uicnt.push(u)
+		}
 		if (c.type == "webdav") {
 			const u = await createUIContainer({
 				adaptors: containers,
@@ -1292,7 +1346,7 @@ function generateKeys(user) {
 //const myToken = generateToken("admin")
 const myToken = generateToken("r.s.cushing@uva.nl", "cushing-001")
 console.log(myToken)
-console.log("Starting secure server...")
-httpsServer.listen(options.port || 4243)
+//console.log("Starting secure server...")
+//httpsServer.listen(options.port || 4243)
 console.log("Starting server...")
 httpServer.listen(options.port || 4200)
