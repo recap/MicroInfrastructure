@@ -1,6 +1,5 @@
 const YAML = require('yaml')
 const _ = require('underscore')
-const amqp = require('amqplib')
 const cmdArgs = require('command-line-args')
 const { createClient} = require('webdav')
 const express = require('express')
@@ -20,17 +19,14 @@ const jwt = require('jsonwebtoken')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const md5 = require('md5')
 const PersistentObject = require('persistent-cache-object');
 const eventEmitter = new events.EventEmitter()
 
 const cmdOptions = [
-	{ name: 'amqp', alias: 'q', type: String},
-	{ name: 'mongo', alias: 'm', type: String},
 	{ name: 'privateKey', alias: 'k', type: String},
 	{ name: 'publicKey', alias: 'c', type: String},
-	{ name: 'cert', alias: 's', type: String},
 	{ name: 'port', alias: 'p', type: Number},
-	{ name: 'dbpass', type: String},
 	{ name: 'host', alias: 'h', type: String},
 	{ name: 'config', type: String},
 	{ name: 'users', alias: 'u', type: String},
@@ -213,18 +209,18 @@ async function digg(p, host, client) {
 		.filter(i => ( (i.type == 'directory') && !(isHiddenFile(i.filename)) ) )
 		.map(i => i.filename)
 	dirs.forEach(d => {
-		console.log("Digging " + d)
 		digg(d, host, client)
 	})
 	dirItems.filter(i => {
 			return ( (i.type == 'file') && !(isHiddenFile(i.filename)) )
 		})
 		.forEach(f => {
+			//TODO change hashing system
+			const dirtyHash = md5(f.basename + ":" + f.size)
+			f.hash = dirtyHash
 			const base = path.basename(f.filename)
 			if (!xedni[base]) {
 				xedni[base] = []
-			//	f.endpoints = [host]
-			//	xedni[base] = f	
 			}
 
 			f.location = host
@@ -234,10 +230,6 @@ async function digg(p, host, client) {
 			if (!inThere) {
 				xedni[base].push(f)
 			}
-			//	console.log(xedni[base])
-			//	xedni[base].endpoints.push(host)
-			
-			//console.log(base)
 		})
 }
 
@@ -251,20 +243,6 @@ async function loadRegistry() {
 				const url = 'http://' + l.host + ":" + l.port
 				const client = createClient(url, {})
 				await digg('/', l, client)
-				/*const dirItems = await client.getDirectoryContents("/")
-				console.log("Items: " + JSON.stringify(dirItems))
-				index[l.name] = dirItems
-				dirItems
-					.filter(i => {
-						return ( (i.type == 'file') && !(isHiddenFile(i.filename)) )
-						//return ( !(isHiddenFile(i.filename)) )
-					})
-					.forEach(f => {
-						const base = path.basename(f.filename)
-						f.details = l
-						xedni[base] = f	
-						console.log(base)
-					})*/
 			} catch(err) {
 				throw(err)
 			}
@@ -279,6 +257,11 @@ app.get(api + '/user', [checkAdminToken, checkToken], (req, res) => {
 
 app.get(api + '/list', [checkAdminToken, checkToken], async (req, res) => {
 	res.status(200).send(xedni)
+})
+
+app.get(api + '/updateregistry', [checkAdminToken, checkToken], async (req, res) => {
+	loadRegistry()
+	res.status(200).send()
 })
 
 app.get(api + '/find/:id', [checkAdminToken, checkToken], async (req, res) => {
@@ -312,17 +295,31 @@ app.post(api + '/test-webhook/', (req, res) => {
 app.post(api + '/callback/:id', (req, res) => {
 	const id = req.params.id
 	const body = req.body
+
+
 	console.log('callback: ' + JSON.stringify(body))
 	res.status(200).send()
 	if (!states[id]) {
 		return
 	}
 	states[id]['status'] = body
+	if (states[id]['details'].timestamp) {
+		const t2 = new Date()
+		const t1 = new Date(states[id]['details'].timestamp)
+		const delta = t2 - t1
+		states[id]['details'].time = delta
+	} else {
+		states[id]['details'].time = null
+	}
 	if (body.status == 'done') {
 		const uri = states[id].details.cmd.webhook.url
 		delete states[id].details.callback
+		delete states[id].status.details
 		console.log('post to webhook uri: ' + uri)
-		request.post(uri, { json: states[id] }, (err, res) => {
+		request.post(uri, { 
+			headers: states[id].details.cmd.webhook.headers,
+			json: states[id] 
+		}, (err, res) => {
 			if (err) console.log(err)
 		})
 	}
@@ -343,6 +340,7 @@ app.post(api + '/copy', [checkAdminToken, checkToken], async (req, res) => {
 					console.log(err)
 					return
 				}
+				copyReq.timestamp = new Date().toISOString()
 				copyReq.callback = {
 					port: serverPort,
 					addresses: addresses,
@@ -373,9 +371,11 @@ app.post(api + '/copy', [checkAdminToken, checkToken], async (req, res) => {
 //const myToken = generateToken("admin", "cushing-001")
 //console.log(myToken)
 
+//const loadRegistryInterval = setInterval(() => {
+//	loadRegistry()
+//}, 300000)
+
 loadRegistry()
-
-
 
 //console.log("Starting secure server...")
 //httpsServer.listen(options.port || 4343)
