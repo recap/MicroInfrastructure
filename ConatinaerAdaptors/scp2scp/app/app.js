@@ -173,7 +173,8 @@ queue.process('copy', async (job, done) => {
 					console.log('trying ' + url)
 					await rp.post(url, {json: { 
 						id: job.data.id,
-						status: 'done'
+						status: 'done',
+						details: job.data
 					}})
 					break
 				} catch(err) {}
