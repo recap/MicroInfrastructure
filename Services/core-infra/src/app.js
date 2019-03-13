@@ -435,19 +435,13 @@ async function createDatanetContainer(details) {
 	})
 	
 	const users = encodeBase64(JSON.stringify(user))
-	cmd += "  echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js  -c /tmp/publicKey.txt -p 8003 -u /assets/jwtusers.json"
+	cmd += "  cd /scripts && ./run.sh "
 	return {
 				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-datanet-adaptor:v0.1",
+				"image": "recap/process-datanet:v0.1",
 				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 8003
-					}
-				],
 				"env": [
-					{ "name": "PUBLICKEY", "value": details.publicKey},
-					{ "name": "JWTUSERS", "value": users }
+					{ "name" : "AUTH", "value": details.auth }
 				],
 				"volumeMounts": [
 					{ "name": "shared-data", "mountPath": "/shared-data" }
@@ -1174,19 +1168,18 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		if (c.type == "datanet") {
 			const u = await createDatanetContainer({
 				adaptors: containers,
-				publicKey: publicKey,
-				users: c.users,
-				user: req.user
+				user: req.user,
+				auth: c.auth
 			})
-			const service = createService({
+			/*const service = createService({
 				name: infra.name + '-datanet',
 				iname: infra.name,
 				namespace: req.user.namespace,
 				targetPort: 8003,
 				type: 'datanet'
-			})
+			})*/
 			uicnt.push(u)
-			services.push(service)
+			//services.push(service)
 		}
 		if (c.type == "query") {
 			const u = await createQueryContainer({
