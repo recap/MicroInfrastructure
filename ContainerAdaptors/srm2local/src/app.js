@@ -19,7 +19,10 @@ const kue = require('kue')
 const exec = require('child_process').exec
 const eventEmitter = new events.EventEmitter()
 
-    // TODO Put  proxy somewhere as input, maybe in the cmdOptions?
+/* port:      What port to expose the service on.
+ * adaptorId: Identifier of this adaptor for the core-query (proxy) to find it.
+ * redis:     What location, {ip/url}:{port}, the redis service is on.
+ * proxy:     Location in filesystem to find the Grid .proxy certificate. */
 const cmdOptions = [
     { name: 'port', alias: 'p', type: Number},
     { name: 'adaptorId', type: String },
@@ -43,7 +46,7 @@ const api = '/api/v1'
 const serverPort = options.port || 4300
 const redisHost = (options.redis) ? options.redis.split(':')[0] : '127.0.0.1'
 const redisPort = (options.redis) ? (options.redis.split(':')[1] || 6379) : 6379
-// TODO Below is redis section
+/* Set up redis client connection and task queue. */
 const client = redis.createClient({
     host: redisHost,
     port: redisPort
@@ -87,14 +90,16 @@ function isHiddenFile(filename) {
     return path.basename(filename).startsWith('.')
 }
 
-// api urls
+/* POST api + /copy
+ * Asynchrounous handling of copying a file from a Grid SRM SURL to the local
+ * filesystem. A copy job is added to the queue. */
 app.post(api + '/copy', async (req, res) => {
     const copyReq = req.body
     console.log(copyReq)
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     console.log('IPIP: ' + ip)
     if (copyReq.cmd.type == 'copy') {
-// TODO Below is for redis
+        /* copy job added to queue */
         queue.create('copy', copyReq).save(err => {
             if (err) {
                 console.log(err)
@@ -117,7 +122,9 @@ app.post(api + '/copy', async (req, res) => {
     }
 })
 
-function srmcp(cmd) {
+/* This function takes a command and executes it as a Promise that one can wait
+ * for. If no error, true is resolved, otherwise false. */
+function execute(cmd) {
     return new Promise((resolve, reject) => {
         exec(cmd, (error, stdout, stderr) => {
             if (error) {console.log('error:\n' + error); return resolve(false);}
@@ -128,27 +135,32 @@ function srmcp(cmd) {
     });
 }
 
+/* This asynchronous function forms the command based on input (json POST). */
 const srmLocalCopy = async function (src, dst) {
-//    return new Promise((resolve, reject) => {
-        console.log("Attempting srmcp command");
-        proxyFile = options.proxy;
-        surl = src.path;
-        output = 'file:///' + dst.path;
-        cmd = 'srmcp -server_mode=passive -x509_user_proxy=' + proxyFile + ' ' + surl + ' ' + output;
-        console.log('Executing:\n  ' + cmd + '\n')
-        result = await srmcp(cmd);
-        console.log('RESULT: ' + result);
-//    })
+    console.log("Attempting srmcp command");
+    /* Command string is formed */
+    proxyFile = options.proxy;
+    surl = src.path;
+    output = 'file:///' + dst.path;
+    cmd = 'srmcp -server_mode=passive -x509_user_proxy=' + proxyFile + ' ' + surl + ' ' + output;
+    console.log('Executing:\n  ' + cmd + '\n')
+    /* Awaits the execution of the command. */
+    result = await execute(cmd);
+    console.log('RESULT: ' + result);
 }
 
-// TODO Below is for redis
+/* Add a copy job to the queue. The task awaits completion of the copy job and
+ * then calls the callback that core-query (proxy) provided in the POST call. */
 queue.process('copy', async (job, done) => {
     console.log("processing job: " + JSON.stringify(job))
+    /* Only works if event is of type srm2local. */
     const type = job.data.cmd.subtype
     if (type == 'srm2local') {
+        /* Awaits completion of SRM copy job. */
         const j = await(srmLocalCopy(job.data.cmd.src, job.data.cmd.dst));
         console.log(j)
         console.log("JOB: " + JSON.stringify(job))
+        /* Callback */
         if (job.data.callback) {
             const cb = job.data.callback
             for (i = 0; i < cb.addresses.length; i++) {
@@ -168,6 +180,7 @@ queue.process('copy', async (job, done) => {
     done()
 })
 
+/* Logging for job queueing, completion and error. */
 queue.on('job enqueue', function(id, type){
   console.log( 'Job %s got queued of type %s', id, type );
 
