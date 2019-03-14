@@ -34,45 +34,60 @@ ENDPOINT        DESCRIPTION\n\
     return help_text
 
 
+#def move_test(surl, destination):
+    
 
 def poll_stage(stage_id, surl):
-    f = open('output.txt', 'w')
+#    f = open('output.txt', 'w')
     staged = False
     total_time = 0
     timer = 10
-    f.write('Staging {0}\n'.format(stage_id))
+#    f.write('Staging {0}\n'.format(stage_id))
     print('Staging {0}\n'.format(stage_id))
     while (not staged):
         if (timer < 3600):
             timer = 2 * timer
         status = sa.get_status(stage_id)
-        f.write('Status {0} at {1} (next {2})\n'.format(status, total_time, timer))
+#        f.write('Status {0} at {1} (next {2})\n'.format(status, total_time, timer))
         print('Status {0} at {1} (next {2})\n'.format(status, total_time, timer))
         if (staged):
             break
         time.sleep(timer)
         total_time = total_time + timer
-        if (total_time > 100):
+        if (total_time > 172800):
+            break;
             staged = True
-    print('Staging complete\n')
-    f.close()
+    if (staged):
+        print('Staging complete\n')
+        return True
+    else:
+        print('Staging failed\n')
+        return False
+#    f.close()
 
-@app.route('/stage')
+@app.route('/stage', methods=['POST'])
 def stage():
-    stage_id = None
-    SAS_id = request.args.get('id', type=int)
+    #stage_id = None
+    #SAS_id = request.args.get('id', type=int)
     #SAS_id = 246403
-    print ('Request:  Stage SAS_id {0}\n'.format(SAS_id));
-    if (SAS_id == None):
-        return 'SAS Id not found\n';
-    surl = surll.get_surl_list(int(SAS_id))
-    print('Got SURL: {0}\n'.format(surl))
-    #stage_id = sa.stage(surl)
-    #stage_id = 2247
-    #poll_thread = threading.Thread(target=poll_stage, kwargs={'stage_id': stage_id, 'surl': surl})
-    #poll_thread.start()
-    #poll_stage(stage_id, surl)
-    return 'Searching for SAS Id {0}, got stage id {1}\n'.format(SAS_id, stage_id);
+    req = request.get_json()
+    print(req)
+    return 'test'
+    
+
+#    print ('Request:  Stage SAS_id {0}\n'.format(SAS_id));
+#    if (SAS_id == None):
+#        return 'SAS Id not found\n';
+#    surl = surll.get_surl_list(int(SAS_id))
+#    print('Got SURL: {0}\n'.format(surl))
+#    stage_id = sa.stage(surl)
+#    #stage_id = 2247
+##    poll_thread = threading.Thread(target=poll_stage, kwargs={'stage_id': stage_id, 'surl': surl})
+#    #poll_thread.start()
+#    staging_status = poll_stage(stage_id, surl)
+#    if (staging_status):
+#        move_test(surl, destination)
+#    return 'Searching for SAS Id {0}, got stage id {1}\n'.format(SAS_id, stage_id)
 
 @app.route('/status')
 def status():

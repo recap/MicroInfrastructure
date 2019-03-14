@@ -1,9 +1,9 @@
-## srm2local
+# srm2local
 
 This service in Singularity can be used to copy a file by SRM to a local filesystem.
 Therefore it should be run on a HPC cluster node so that it can be downloaded directly to its filesystem.
 
-# Input
+## Input
 
 Command:
 ```
