@@ -1,0 +1,9 @@
+openslide-python
+opencv-python
+scikit-image
+scikit-learn
+numpy
+pycurl
+tflearn
+pillow
+h5py

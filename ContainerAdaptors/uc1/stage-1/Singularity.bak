@@ -1,0 +1,24 @@
+BootStrap: docker
+From: centos:7
+%setup
+   # commands to be executed on host outside container during bootstrap
+   cp ./requirements.txt $SINGULARITY_ROOTFS
+%test
+   # commands to be executed within container at close of bootstrap process
+   exec /usr/bin/python --version
+%runscript
+   # commands to be executed when the container runs
+   echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+   echo "PATH: $PATH"
+   echo "Arguments received: $*"
+   exec /usr/bin/python "$@"
+%post
+   # commands to be executed inside container during bootstrap
+   yum -y install epel-release
+   yum -y install https://centos7.iuscommunity.org/ius-release.rpm
+   yum clean all && yum makecache
+   yum groupinstall -y "Development Tools"
+   yum install -y python-devel opencv-devel libSM
+   yum -y install wget python python-pip libgomp
+   pip install --upgrade pip
+   pip install -r /requirements.txt
