@@ -35,18 +35,20 @@ const cmdOptions = [
 
 const options = cmdArgs(cmdOptions)
 
-//const index = new PersistentObject('./index.db', null, {'disableInterval': true})
-//const xedni = new PersistentObject('./xedni.db', null, {'disableInterval': true})
+// index dbs to keep list of files on storages.
 const index = new PersistentObject('./index.db')
 const xedni = new PersistentObject('./xedni.db')
+// keep track of copy request states
+const states = new PersistentObject('./states.db')
 
+// list of user's public keys allowed to access the service. Used to check JWT signitature 
 const users = require(options.users)
 Object.keys(users).forEach(k => {
 	const u = users[k]
 	u.decodedPublicKey = decodeBase64(u.publicKey)
 })
 
-// load keys
+// load keys files
 //const privateKey = fs.readFileSync(options.privateKey, "utf-8")
 const publicKey = fs.readFileSync(options.publicKey, "utf-8")
 //const cert = fs.readFileSync(options.cert, "utf-8")
@@ -55,13 +57,15 @@ const publicKey = fs.readFileSync(options.publicKey, "utf-8")
 //	cert: cert
 //}
 
+// load config indicating ip:ports of containers exposing webdav.
+// TODO use some sort of service discovery instead
 const config = JSON.parse(decodeBase64(options.config))
 console.log("Starting with config: " + JSON.stringify(config, null, 2))
 console.log("Users: " + JSON.stringify(users, null, 2))
 
+// setup express http server
 //const httpsServer = https.createServer(credentials, app)
 const httpServer = http.createServer(app)
-
 app.use(bodyParser.urlencoded({extended: true}))
 app.use(bodyParser.json())
 app.use(express.static('./'))
@@ -70,6 +74,8 @@ app.get('/', function(req, res,next) {
 })
 
 const api = '/api/v1'
+
+// get list of local network interfaces
 const interfaces = os.networkInterfaces();
 const addresses = ['127.0.0.1'];
 for (const k in interfaces) {
@@ -81,14 +87,16 @@ for (const k in interfaces) {
     }
 }
 
+// load config
 const serverPort = options.port || 4300
 const redisHost = (options.redis) ? options.redis.split(':')[0] : '127.0.0.1'
 const redisPort = (options.redis) ? (options.redis.split(':')[1] || 6379) : 6379
+
 const client = redis.createClient({
 	host: redisHost,
 	port: redisPort
 })
-const states = new PersistentObject('./states.db')
+
 
 function encodeBase64(s) {
 	return new Buffer(s).toString('base64')
@@ -117,30 +125,25 @@ function checkToken(req, res, next) {
 	}
 	const token = req.headers['x-access-token']
 	if (!token) {
-		console.log("L")
 		res.status(403).send()
 		return
 	}
 	const preDecoded = jwt.decode(token)
 	if (!preDecoded) {
-		console.log("G")
 		res.status(403).send()
 	}
 	const user = preDecoded.email || preDecoded.user
 	if(!users[user]) {
-		console.log("G")
 		res.status(403).send()
 	}
 
 	const cert = users[user].decodedPublicKey
 	if (!cert) {
-		console.log("K")
 		res.status(403).send()
 	}
 
 	jwt.verify(token, cert, {algorithms: ['RS256']}, (err, decoded) => {
 		if (err) {
-			console.log("P")
 			console.log(err)
 			res.status(403).send()
 			return
@@ -174,7 +177,7 @@ function checkAdminToken(req, res, next) {
 	})
 }
 
-// my dump retry function
+// a dumb retry function
 async function retry(fn, times, interval) {
 	return new Promise((resolve, reject) => {
 		let cnt = 0
@@ -202,6 +205,7 @@ function isHiddenFile(filename) {
 	return path.basename(filename).startsWith('.')
 }
 
+// recursively go through directories and populate index dbs
 async function digg(p, host, client) {
 
 	const dirItems = await client.getDirectoryContents(p)
@@ -215,7 +219,8 @@ async function digg(p, host, client) {
 			return ( (i.type == 'file') && !(isHiddenFile(i.filename)) )
 		})
 		.forEach(f => {
-			//TODO change hashing system
+			//TODO problem getting file hash since we do not want to load files to VMs
+			//just to calculate hash.
 			const dirtyHash = md5(f.basename + ":" + f.size)
 			f.hash = dirtyHash
 			const base = path.basename(f.filename)
@@ -236,6 +241,7 @@ async function digg(p, host, client) {
 // load registry
 async function loadRegistry() {
 
+	// query every webdav container to get file list
 	config.forEach(async l => {
 		retry(async function() {
 			try{
@@ -255,15 +261,18 @@ app.get(api + '/user', [checkAdminToken, checkToken], (req, res) => {
 	res.status(200).send(req.user)
 })
 
+// return file list from index db
 app.get(api + '/list', [checkAdminToken, checkToken], async (req, res) => {
 	res.status(200).send(xedni)
 })
 
+// trigger an index update
 app.get(api + '/updateregistry', [checkAdminToken, checkToken], async (req, res) => {
 	loadRegistry()
 	res.status(200).send()
 })
 
+// find a file from the index
 app.get(api + '/find/:id', [checkAdminToken, checkToken], async (req, res) => {
 	const filename = req.params.id
 	const record = xedni[filename]
@@ -274,6 +283,7 @@ app.get(api + '/find/:id', [checkAdminToken, checkToken], async (req, res) => {
 	res.status(200).send(record)
 })
 
+// check the status of a copy request
 app.get(api + '/status/:id', [checkAdminToken, checkToken], (req, res) => {
 	const id = req.params.id
 	if (!id) {
@@ -287,22 +297,24 @@ app.get(api + '/status/:id', [checkAdminToken, checkToken], (req, res) => {
 	res.status(200).send(states[id])
 })
 
+// internal test webhook
 app.post(api + '/test-webhook/', (req, res) => {
 	res.status(200).send()
 	console.log("WEBHOOK: " + JSON.stringify(req.body))
 })
 
+// callback url used by the client containers doing the copying to call back once the file copy is done.
 app.post(api + '/callback/:id', (req, res) => {
 	const id = req.params.id
 	const body = req.body
 
-
-	console.log('callback: ' + JSON.stringify(body))
 	res.status(200).send()
 	if (!states[id]) {
 		return
 	}
 	states[id]['status'] = body
+
+	// calculate file transfer elapsed time
 	if (states[id]['details'].timestamp) {
 		const t2 = new Date()
 		const t1 = new Date(states[id]['details'].timestamp)
@@ -311,10 +323,13 @@ app.post(api + '/callback/:id', (req, res) => {
 	} else {
 		states[id]['details'].time = null
 	}
+
 	if (body.status == 'done') {
 		const uri = states[id].details.cmd.webhook.url
 		delete states[id].details.callback
 		delete states[id].status.details
+
+		// calling external webhook to indicate job has been done
 		console.log('post to webhook uri: ' + uri)
 		request.post(uri, { 
 			headers: states[id].details.cmd.webhook.headers,
@@ -325,27 +340,63 @@ app.post(api + '/callback/:id', (req, res) => {
 	}
 })
 
-// api urls
+/* staging url e.g. input
+ * [{
+ *  "id": "test123",
+ *   "cmd": {
+ *       "type": "copy",
+ *       "subtype": "scp2scp",
+ *       "src":{
+ *           "type": "scp",
+ *           "host": "",
+ *           "user": "",
+ *           "path": "/mnt/dss/process/UC1/Camelyon16/TestData/Test_001.tif"
+ *       },
+ *       "dst":{
+ *           "type": "scp",
+ *           "host": "",
+ *           "user": "",
+ *           "path": "/nfs/scratch/cushing/UC1/"
+ *       },
+ *      "webhook": {
+ *          "method": "POST",
+ *           "url": "",
+ *           "headers": {
+ *           	"x-access-token": "asfsafdsfasda"
+ *           }
+ *       },
+ *       "options": {}
+ *   }
+ *}]
+ */
 app.post(api + '/copy', [checkAdminToken, checkToken], async (req, res) => {
 	if (!Array.isArray(req.body)) {
 		res.status(400).send()
 		return
 	}
+	// process array of file copy requests
 	req.body.forEach(copyReq => {
 		if (copyReq.cmd.type == 'copy') {
-			// check delegate adaptor
+			// a key identifies which client container can handle the copying. 
+			// The key is calculated as a combination of type and source host. 
+			// This is set as --adaptorId parameter in the client container and 
+			// published to redis.
 			const key = copyReq.cmd.src.type + ":" + copyReq.cmd.src.host
+			// fincd client container
 			client.hgetall(key, async (err, ep) => {
 				if (err) {
 					console.log(err)
 					return
 				}
+				// set timestamp, maybe should be set in the client container just before
+				// actual data transfer to eliminate queueing time.
 				copyReq.timestamp = new Date().toISOString()
 				copyReq.callback = {
 					port: serverPort,
 					addresses: addresses,
 					path: '/api/v1/callback/'
 				}
+				// try submitting copy request to IP:PORT
 				const ips = ep.ips.split(',')
 				for(i = 0; i < ips.length; i++) {
 					const ip = ips[i]
@@ -354,6 +405,7 @@ app.post(api + '/copy', [checkAdminToken, checkToken], async (req, res) => {
 					try {
 						const result = await rp.post(url, {json: copyReq })
 						if (result) {
+							// update state db
 							states[copyReq.id] = {
 								status: result,
 								details: copyReq
@@ -367,9 +419,6 @@ app.post(api + '/copy', [checkAdminToken, checkToken], async (req, res) => {
 	})
 	res.status(200).send('OK')
 })
-
-//const myToken = generateToken("admin", "cushing-001")
-//console.log(myToken)
 
 //const loadRegistryInterval = setInterval(() => {
 //	loadRegistry()

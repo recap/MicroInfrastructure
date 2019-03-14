@@ -29,6 +29,7 @@ pids
 *.txt
 *key*
 *.csr
+*.txt
 Environment.cfg
 .proxy
 
