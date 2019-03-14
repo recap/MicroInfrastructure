@@ -44,26 +44,26 @@ const serverPort = options.port || 4300
 const redisHost = (options.redis) ? options.redis.split(':')[0] : '127.0.0.1'
 const redisPort = (options.redis) ? (options.redis.split(':')[1] || 6379) : 6379
 // TODO Below is redis section
-//const client = redis.createClient({
-//    host: redisHost,
-//    port: redisPort
-//})
-//const queue = kue.createQueue({
-//    prefix: 'q',
-//    redis: {
-//        host: redisHost,
-//        port: redisPort
-//    }
-//})
-//client.hmset(options.adaptorId, ['ips', addresses, 'url', 'http://#IPIP#:' + serverPort + '/api/v1/copy', 'timestamp', new Date().toISOString()])
-//client.hgetall(options.adaptorId, (err, reply) => {
-//    if (err) console.log(err)
-//    console.log(reply.url)
-//})
-//client.hmget(options.adaptorId, 'ips', (err, reply) => {
-//    if (err) console.log(err)
-//    console.log(reply)
-//})
+const client = redis.createClient({
+    host: redisHost,
+    port: redisPort
+})
+const queue = kue.createQueue({
+    prefix: 'q',
+    redis: {
+        host: redisHost,
+        port: redisPort
+    }
+})
+client.hmset(options.adaptorId, ['ips', addresses, 'url', 'http://#IPIP#:' + serverPort + '/api/v1/copy', 'timestamp', new Date().toISOString()])
+client.hgetall(options.adaptorId, (err, reply) => {
+    if (err) console.log(err)
+    console.log(reply.url)
+})
+client.hmget(options.adaptorId, 'ips', (err, reply) => {
+    if (err) console.log(err)
+    console.log(reply)
+})
 const httpServer = http.createServer(app)
 
 app.use(bodyParser.urlencoded({extended: true}))
@@ -95,25 +95,25 @@ app.post(api + '/copy', async (req, res) => {
     console.log('IPIP: ' + ip)
     if (copyReq.cmd.type == 'copy') {
 // TODO Below is for redis
-//        queue.create('copy', copyReq).save(err => {
-//            if (err) {
-//                console.log(err)
-//                res.status(500).send(err)
-//                return
-//            }
-//            res.status(200).send({
-//                id: copyReq.id,
-//                status: 'submitted'
-//            })
-//        })
-/* Below code is used to test srm2local without making use of queue and reddis */
-        srmLocalCopy(copyReq.cmd.src, copyReq.cmd.dst)
-        res.status(200).send({
-            id: copyReq.id,
-            status: 'submitted'
+        queue.create('copy', copyReq).save(err => {
+            if (err) {
+                console.log(err)
+                res.status(500).send(err)
+                return
+            }
+            res.status(200).send({
+                id: copyReq.id,
+                status: 'submitted'
+            })
         })
-    } else {
-        res.status(400).send()
+/* Below code is used to test srm2local without making use of queue and reddis */
+//        srmLocalCopy(copyReq.cmd.src, copyReq.cmd.dst)
+//        res.status(200).send({
+//            id: copyReq.id,
+//            status: 'submitted'
+//        })
+//    } else {
+//        res.status(400).send()
     }
 })
 
@@ -142,44 +142,44 @@ const srmLocalCopy = async function (src, dst) {
 }
 
 // TODO Below is for redis
-//queue.process('copy', async (job, done) => {
-//    console.log("processing job: " + JSON.stringify(job))
-//    const type = job.data.cmd.subtype
-//    if (type == 'srm2local') {
-//        const j = await(true)//TODO)
-//        console.log(j)
-//        console.log("JOB: " + JSON.stringify(job))
-//        if (job.data.callback) {
-//            const cb = job.data.callback
-//            for (i = 0; i < cb.addresses.length; i++) {
-//                try {
-//                    const url = 'http://' + cb.addresses[i] + ':' + cb.port + cb.path + job.data.id
-//                    console.log('trying ' + url)
-//                    await rp.post(url, {json: { 
-//                        id: job.data.id,
-//                        status: 'done',
-//                        details: job.data
-//                    }})
-//                    break
-//                } catch(err) {}
-//            }
-//        }
-//    }
-//    done()
-//})
-//
-//queue.on('job enqueue', function(id, type){
-//  console.log( 'Job %s got queued of type %s', id, type );
-//
-//}).on('job complete', function(id, result){
-//  kue.Job.get(id, function(err, job){
-//    if (err) return
-//    job.remove(function(err){
-//      if (err) throw err
-//      console.log('removed completed job #%d', job.id)
-//    })
-//  })
-//})
+queue.process('copy', async (job, done) => {
+    console.log("processing job: " + JSON.stringify(job))
+    const type = job.data.cmd.subtype
+    if (type == 'srm2local') {
+        const j = await(srmLocalCopy(job.data.cmd.src, job.data.cmd.dst));
+        console.log(j)
+        console.log("JOB: " + JSON.stringify(job))
+        if (job.data.callback) {
+            const cb = job.data.callback
+            for (i = 0; i < cb.addresses.length; i++) {
+                try {
+                    const url = 'http://' + cb.addresses[i] + ':' + cb.port + cb.path + job.data.id
+                    console.log('trying ' + url)
+                    await rp.post(url, {json: { 
+                        id: job.data.id,
+                        status: 'done',
+                        details: job.data
+                    }})
+                    break
+                } catch(err) {}
+            }
+        }
+    }
+    done()
+})
+
+queue.on('job enqueue', function(id, type){
+  console.log( 'Job %s got queued of type %s', id, type );
+
+}).on('job complete', function(id, result){
+  kue.Job.get(id, function(err, job){
+    if (err) return
+    job.remove(function(err){
+      if (err) throw err
+      console.log('removed completed job #%d', job.id)
+    })
+  })
+})
 
 function verifyJob(job) {
     if (!job.name) return false
