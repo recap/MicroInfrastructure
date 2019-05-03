@@ -7,5 +7,5 @@ push: build
 	docker push recap/lofar-stage2
 
 run: build
-	docker run -it --privileged recap/lofar-stage2 /bin/bash
+	docker run -dt -p 5000:5000 recap/lofar-stage2 
 

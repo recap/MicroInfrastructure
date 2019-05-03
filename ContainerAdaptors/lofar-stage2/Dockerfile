@@ -12,7 +12,8 @@ RUN apt-get -qq update && apt-get -qq install -y \
 RUN ./scripts/install-lofar-lta.sh
 
 # Install dependencies (3)
-RUN pipenv install --skip-lock
+RUN pipenv install --system --skip-lock
 
-
-
+EXPOSE 5000
+ENTRYPOINT [ "python" ]
+CMD [ "./src/app.py" ]
