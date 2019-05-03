@@ -1,3 +1,4 @@
+from background import StagingMonitor
 from flask import Flask, request
 from GRID_LRT.Staging import stager_access as staging
 from helpers import get_surls, json_respone
@@ -33,6 +34,10 @@ def stage():
     # Request staging
     surls = get_surls(int(sid))
     rid = staging.stage(surls)
+
+    # Monitor staging
+    monitor = StagingMonitor(rid)
+    monitor.start()
 
     return json_respone({'requestId': rid}, 200)
 
