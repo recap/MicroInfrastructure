@@ -1,17 +1,9 @@
 from flask import Flask, request
 from GRID_LRT.Staging import stager_access as staging
-from helpers import get_surls
+from helpers import get_surls, json_respone
 from json import dumps
 
-
 app = Flask(__name__)
-
-
-def json_respone(payload, status_code):
-    if payload == None:
-        payload = {}
-
-    return (dumps(payload), status_code, {'Content-Type':'application/json'})
 
 @app.route('/')
 def index():
