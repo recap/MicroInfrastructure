@@ -1,11 +1,16 @@
 def get_surls(observation_id):
     from awlofar.database.Context import context
+    from common.config.Profile import profiles
     from common.database.Database import database
     from awlofar.main.aweimports import CorrelatedDataProduct, \
         FileObject, BeamFormedDataProduct, Observation
     from awlofar.toolbox.LtaStager import LtaStager, LtaStagerError  
 
-    if database.connected() is None:
+    if not database.connected():
+        profile = profiles.get_current_profile()
+        if profile is None:
+            profile = profiles.create_profile()
+        
         database.connect()
 
     cls = CorrelatedDataProduct
