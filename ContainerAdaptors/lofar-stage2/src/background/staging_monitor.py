@@ -1,29 +1,36 @@
+from GRID_LRT.Staging import stager_access as staging
+from helpers import execute_webhook
 from threading import Thread
 from time import sleep
 
 
 class StagingMonitor(Thread):
 
-    def __init__(self, rid):
+    def __init__(self, rid, interval, webhook=None):
         Thread.__init__(self)
-        self.rid = rid        
+        self.rid = rid
+        self.interval = interval
+        self.webhook = webhook
 
-    def poll(self):
-        print(f"TODO: poll request {self.rid}")
-        if self.counter > 5:
-            self.finished = True
-            return True
-        
-        return False
+    def is_finished(self):
+        status = staging.get_status(self.rid)
+        print(f'Current status of staging request #{self.rid}: {status}.')
+
+        return status == 'success'
 
     def run(self):
-        self.counter = 0
-        self.finished = False
+        counter = 0
+        finished = False
 
-        while not self.finished:
-            if not self.poll():
-                sleep(1)
+        print(f'Monitoring staging request #{self.rid} every {self.interval}s.')
 
-            self.counter = self.counter + 1
-        
-        print('Finished!')
+        while not finished:
+            sleep(self.interval)
+
+            finished = self.is_finished()
+            counter = counter + 1
+
+        if self.webhook is not None:
+            execute_webhook(self.webhook)
+
+

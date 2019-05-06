@@ -20,14 +20,14 @@ def get_observation_surls(sasid):
 
 @app.route('/stage', methods=['POST'])
 def stage():
-    payload = request.get_json()
+    payload = request.get_json()['cmd']
 
     # Validate payload
-    stype = payload['cmd']['type']
+    stype = payload['type']
     if stype != 'lofar':
         return json_respone({'error': 'Provided type is not LOFAR.'}, 400)
 
-    sid = payload['cmd']['src']['id']
+    sid = payload['src']['id']
     if not isinstance(sid, int) and not sid.isdigit():
         return json_respone({'error': 'Provided id is not integer.'}, 400)
 
@@ -35,8 +35,16 @@ def stage():
     surls = get_surls(int(sid))
     rid = staging.stage(surls)
 
+    # Prepare webhook/callback
+    webhook = payload.get('webhook', None)
+    if webhook is not None:
+        webhook['payload'] = {
+            'requestId': rid,
+            'surls': surls
+        }
+
     # Monitor staging
-    monitor = StagingMonitor(rid)
+    monitor = StagingMonitor(rid, 30, webhook)
     monitor.start()
 
     return json_respone({'requestId': rid}, 200)

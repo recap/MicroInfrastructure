@@ -1,8 +1,12 @@
 def get_surls(observation_id):
     from awlofar.database.Context import context
+    from common.database.Database import database
     from awlofar.main.aweimports import CorrelatedDataProduct, \
         FileObject, BeamFormedDataProduct, Observation
     from awlofar.toolbox.LtaStager import LtaStager, LtaStagerError  
+
+    if database.connected() is None:
+        database.connect()
 
     cls = CorrelatedDataProduct
 
