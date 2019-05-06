@@ -6,7 +6,7 @@ This service provides an API to stage LOFAR data from LTA to dCache.
 Start the service as follows:
 
 ```shell
-sudo docker run -dt -p 5000:5000 -e LOFAR_USER=ovalker -e LOFAR_PASS=Co9mmuniqu4e lofar-stage2
+docker run -dt -p 5000:5000 -e LOFAR_USER=<username> -e LOFAR_PASS=<password> lofar-stage2
 ```
 
 ## `/stage`
@@ -37,7 +37,7 @@ The above request will return the staging request id:
 }
 ```
 
-When the staging is finished the webhook is executed (if provided), with payload:
+When the staging request is finished the webhook is executed (if provided), with payload:
 ```json
 {
   "requestId": "<rid>",
