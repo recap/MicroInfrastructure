@@ -1,5 +1,6 @@
 from GRID_LRT.Staging import stager_access as staging
 from helpers import execute_webhook
+from loguru import logger
 from threading import Thread
 from time import sleep
 
@@ -14,7 +15,7 @@ class StagingMonitor(Thread):
 
     def is_finished(self):
         status = staging.get_status(self.rid)
-        print(f'Current status of staging request #{self.rid}: {status}.')
+        logger.info('Current status of staging request #{}: {}.', self.rid, status)
 
         return status == 'success'
 
@@ -22,7 +23,7 @@ class StagingMonitor(Thread):
         counter = 0
         finished = False
 
-        print(f'Monitoring staging request #{self.rid} every {self.interval}s.')
+        logger.info('Monitoring staging request #{} every {}s.', self.rid, self.interval)
 
         while not finished:
             sleep(self.interval)

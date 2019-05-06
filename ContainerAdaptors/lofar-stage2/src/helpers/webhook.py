@@ -1,3 +1,4 @@
+from loguru import logger
 from requests import get, post
 
 def execute_webhook(webhook):
@@ -19,4 +20,4 @@ def execute_webhook(webhook):
             json=webhook['payload']
         )
 
-    print(f'Executed webhook.')
+    logger.info('Executed webhook with url: {}.', webhook['url'])

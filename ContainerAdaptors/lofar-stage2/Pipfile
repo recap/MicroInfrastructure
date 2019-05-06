@@ -9,6 +9,7 @@ verify_ssl = true
 flask = "*"
 grid-lrt = "*"
 requests = "*"
+loguru = "*"
 
 [requires]
 python_version = "3.7"
