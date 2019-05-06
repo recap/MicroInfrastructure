@@ -1,11 +1,3 @@
-# temporarily ;)
-from os import environ
-environ["LOGURU_FORMAT"] = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-    "<level>{level: <8}</level> | "
-    "<cyan>{name}</cyan> - <level>{message}</level>"
-)
-
 from background import StagingMonitor
 from flask import Flask, request
 from GRID_LRT.Staging import stager_access as staging

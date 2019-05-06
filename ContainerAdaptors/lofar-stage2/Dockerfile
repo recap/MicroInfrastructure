@@ -14,6 +14,8 @@ RUN ./scripts/install-lofar-lta.sh
 # Install dependencies (3)
 RUN pipenv install --system --skip-lock
 
+# Logging configuration
+ENV LOGURU_FORMAT="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> - <level>{message}</level>"
+
 EXPOSE 5000
-ENTRYPOINT [ "python" ]
-CMD [ "./src/app.py" ]
+ENTRYPOINT [ "scripts/entrypoint.sh" ]
