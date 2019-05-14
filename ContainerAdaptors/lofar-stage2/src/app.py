@@ -20,14 +20,15 @@ def get_observation_surls(sasid):
 
 @app.route('/stage', methods=['POST'])
 def stage():
-    payload = request.get_json()['cmd']
+    payload = request.get_json()
+    command = payload['cmd']
 
     # Validate payload
-    stype = payload['subtype']
+    stype = command['subtype']
     if stype != 'lofar':
         return json_respone({'error': 'Provided subtype is not LOFAR.'}, 400)
 
-    sid = payload['src']['id']
+    sid = command['src']['id']
     if not isinstance(sid, int) and not sid.isdigit():
         return json_respone({'error': 'Provided id is not integer.'}, 400)
 
