@@ -27,7 +27,10 @@ def execute():
     # Run container
     response = container.run()
 
-    return json_respone({ 'identifier': identifier }, 202)
+    return json_respone({ 
+        'identifier': identifier,
+        'response': response 
+    }, 202)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', threaded=True)

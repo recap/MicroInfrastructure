@@ -22,7 +22,7 @@ class Srm2Hpc():
         # Prepare arguments
         arguments = base64_dict({
             'copyjobfile': self.as_copyjobfile(srm_paths),
-            'certificate': srm_certificate,
+            'proxy': srm_certificate,
             'webhook': base64_dict(self.webhook)
         })
 
@@ -35,11 +35,13 @@ class Srm2Hpc():
         filename = f'job-{uuid4().hex[0:6]}.sh'
         bash = f'singularity run -B {hpc_path}:/local {self.container_uri} {arguments}'
         client.exec_command(f""" 
-            echo "#!/bin/bash\n{bash}" > {filename} && sbatch {filename} && rm {filename}
+            echo "#!/bin/bash\n{bash}" > {filename} && sbatch {filename}
         """)
 
         # Close SSH connection to HPC
         client.close()
+
+        return {}
 
     def as_copyjobfile(self, paths):
         src_dest = [f'{path} file:////local' for path in paths]
