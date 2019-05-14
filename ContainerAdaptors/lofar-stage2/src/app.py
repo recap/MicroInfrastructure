@@ -23,9 +23,9 @@ def stage():
     payload = request.get_json()['cmd']
 
     # Validate payload
-    stype = payload['type']
+    stype = payload['subtype']
     if stype != 'lofar':
-        return json_respone({'error': 'Provided type is not LOFAR.'}, 400)
+        return json_respone({'error': 'Provided subtype is not LOFAR.'}, 400)
 
     sid = payload['src']['id']
     if not isinstance(sid, int) and not sid.isdigit():
