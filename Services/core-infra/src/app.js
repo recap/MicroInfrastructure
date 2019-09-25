@@ -22,7 +22,9 @@ const forge = require('node-forge')
 const dockerNames = require('docker-names')
 const md5 = require('md5')
 const jupyter = require('./jupyter')
+const path_module = require('path');
 const eventEmitter = new events.EventEmitter()
+const moduleHolder = {};
 
 const cmdOptions = [
 	{ name: 'amqp', alias: 'q', type: String},
@@ -87,6 +89,33 @@ kubeapi.get('namespaces/process-core/pods', (err, data) => {
 		console.log("namespace: process-core, pod: " + d.metadata.name);
 	})
 })
+
+function loadModules(path) {
+    fs.lstat(path, function(err, stat) {
+        if (stat.isDirectory()) {
+            // we have a directory: do a tree walk
+            fs.readdir(path, function(err, files) {
+                var f, l = files.length;
+                for (var i = 0; i < l; i++) {
+                    f = path_module.join('./', path, files[i]);
+                    loadModules(f);
+                }
+            });
+        } else {
+			if(path_module.extname(path) != '.js') return
+            // we have a file: load it
+            require('./' + path)(moduleHolder);
+        }
+    });
+}
+
+function watchModules(path) {
+	fs.watch(path, (event, who) => {
+		if (event != 'change') return
+		f = path + '/' + who
+		loadModules(f)
+	})
+}
 
 function encodeBase64(s) {
 	return new Buffer(s).toString('base64')
@@ -611,24 +640,6 @@ function createScpContainer(details) {
 			}
 }
 
-function createRedisContainer(details) {
-	return {
-				"name": "redis",
-				"image": "redis",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": details.containerPort || 6379
-					}
-				],
-				"env": [
-					{ "name": "NAME", "value": details.name }
-
-				],
-				"command": [ "redis-server" ],
-			}
-}
-
 function createVolume(details) {
 	// return default pod volumes
 	return  [
@@ -971,6 +982,60 @@ const getNextPort = function() {
 		return port++
 	}
 }()
+
+app.post(api + '/infrastructure-test', checkToken, async(req, res) => {
+	const infra = req.body
+	let cntPort = 3001
+	const response = {}
+	const services = []
+	const claims = []
+	const adaptorDescriptions = []
+	const volumes = createVolume()
+	// convert description to k8s container list
+	const sshPromises = infra.storageAdaptorContainers.filter(adaptor => {
+		return adaptor.type == "sshfs"
+	}).map(async(adaptor, index) => {
+		adaptor.keys = req.user.keys.ssh
+		// create ssh keys
+		// create container descriptions
+		const u = moduleHolder['sshfs']({
+			name: adaptor.name,
+			namespace: req.user.namespace,
+			containerPort: cntPort,
+			sshHost: adaptor.host,
+			sshPort: adaptor.port || '22',
+			sshUser: adaptor.user,
+			sshPath: adaptor.path
+		})
+		const desc = {
+			name: adaptor.host,
+			host: 'localhost',
+			port: cntPort,
+			type: 'webdav',
+			mount: adaptor.path
+		}
+		adaptorDescriptions.push(desc)
+		return u
+	})
+
+	const sshContainers = await Promise.all(sshPromises)
+
+	const uiPromises = infra.logicContainers.map(async(c, index) => {
+		if(!moduleHolder[c.type]) {
+			console.log("[ERROR] " + c.type + " not found.")
+			return
+		}
+		c.adaptors = sshContainers
+		c.descriptions = adaptorDescriptions
+		c.user = req.user
+		const u = moduleHolder[c.type](c)
+		return u
+	}) //uiPromises
+	const uiContainers = await Promise.all(uiPromises)
+	uiContainers.forEach(c => {
+		console.log(c.name)
+	})
+})
 
 app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	const infra = req.body
@@ -1337,6 +1402,8 @@ function generateKeys(user) {
 //startMq()
 //checkMongo()
 //const myToken = generateToken("admin")
+loadModules('./containers')
+watchModules('./containers')
 const myToken = generateToken("r.s.cushing@uva.nl", "cushing-001")
 console.log(myToken)
 //console.log("Starting secure server...")
