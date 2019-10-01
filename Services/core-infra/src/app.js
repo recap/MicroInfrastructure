@@ -60,7 +60,6 @@ app.get('/', function(req, res,next) {
 
 const api = '/api/v1'
 
-
 // check mongo
 const url = "mongodb://core-infra:" + options.dbpass + "@" + options.mongo + ":27017/process"
 mongoose.connect(url)
@@ -80,7 +79,6 @@ const kubeext = k8s.api({
 	endpoint: 'http://127.0.0.1:8080',
 	version: '/apis/apps/v1'
 })
-
 
 kubeapi.get('namespaces/process-core/pods', (err, data) => {
 	if (err) throw err
@@ -152,381 +150,6 @@ function createSecret(keys) {
 	}
 }
 
-async function createUIJWTContainer(details) { 
-	let cmd = ""
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	const users = encodeBase64(JSON.stringify(user))
-
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		if (isEmpty(host)) return []
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-
-	cmd += " cd /root/webdavserver && node webdavserver-jwt.js"
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-webdav:v0.3",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 8001
-					}
-				],
-				"env": [
-					{ "name": "JWTUSERS", "value": users }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createDispelContainer(details) {
-	let cmd = ""
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	const users = encodeBase64(JSON.stringify(user))
-
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		if (isEmpty(host)) return []
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-	cmd += " catalina.sh run"
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-dispel:v0.1",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 8080
-					}
-				],
-				"env": [
-					{ "name": "JWTUSERS", "value": users }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createNextcloudContainer(details) {
-	let cmd = ""
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	const users = encodeBase64(JSON.stringify(user))
-
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		if (isEmpty(host)) return []
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-	cmd += " /entrypoint.sh apache2-foreground "
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-nextcloud:latest",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 80
-					}
-				],
-				"env": [
-					{ "name": "JWTUSERS", "value": users }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createJupyterContainer(details) {
-	let cmd = ""
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	const users = encodeBase64(JSON.stringify(user))
-	const passwd = jupyter.jupyterPasswd(details.pass)
-	const passwdString = encodeBase64("c.NotebookApp.password = u'" + passwd +"'")
-
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		if (isEmpty(host)) return []
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		if (isEmpty(a)) return	
-		cmd += " echo $JWTUSERS | base64 -d > /assets/jwtusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-	cmd += " echo $JPASSWD | base64 -d >> /home/jovyan/.jupyter/jupyter_notebook_config.py && "
-	cmd += " cd /data && jupyter lab --allow-root"
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-jupyter:v0.1",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 8888
-					}
-				],
-				"env": [
-					{ "name": "JWTUSERS", "value": users },
-					{ "name": "JPASSWD", "value": passwdString }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createQueryContainer(details) {
-
-	//console.log(details.users)
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	const users = encodeBase64(JSON.stringify(user))
-	let cmd = "echo $JWTUSERS | base64 -d > /assets/jwtusers.json && echo $PUBLICKEY > /tmp/publicKey.txt && cd /app/ && node app.js --config $APPCONFIG -c /tmp/publicKey.txt -p 8002 -u /assets/jwtusers.json"
-	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-core-query:v0.1",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 4300
-					}
-				],
-				"env": [
-					{ "name": "APPCONFIG", "value": appConfig },
-					{ "name": "PUBLICKEY", "value": details.publicKey},
-					{ "name": "JWTUSERS", "value": users }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createGenericContainer(details) {
-
-	let cmd = ""
-	//console.log(details.users)
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		if (isEmpty(host)) return []
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		if (isEmpty(a)) return	
-		cmd += " /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-	
-	const users = encodeBase64(JSON.stringify(user))
-	cmd += " " 
-	cmd += details.cmd
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": details.image,
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": details.port
-					}
-				],
-				"env": [
-					{ "name": "PUBLICKEY", "value": details.publicKey},
-					{ "name": "JWTUSERS", "value": users }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createDatanetContainer(details) {
-
-	let cmd = ""
-	//console.log(details.users)
-	const user = {
-		[[details.user.email]]: {
-			'publicKey': encodeBase64(details.user.keys.raw.public)
-		}
-	}
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		if (isEmpty(host)) return []
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		if (isEmpty(a)) return	
-		cmd += " /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-	
-	const users = encodeBase64(JSON.stringify(user))
-	cmd += "  cd /scripts && ./run.sh "
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-datanet:v0.1",
-				"imagePullPolicy": "Always",
-				"env": [
-					{ "name" : "AUTH", "value": details.auth }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
-async function createUIContainer(details) { 
-	let cmd = ""
-	const htpass = details.user + ":jsdav:" + md5(details.user + ":jsdav:" + details.pass)
-	details.adaptors.map(a => {
-		const host = a.env.filter(e => {
-			return e.name == "NAME"
-		})
-		return {
-			host: host[0].value,
-			port: a.ports[0].containerPort
-		}
-	}).forEach(a => {
-		cmd += " echo $HTDIGEST > /assets/htusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
-	})
-
-	cmd += " cd /root/webdavserver && node webdavserver-ht.js"
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-webdav:v0.3",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": 8000
-					}
-				],
-				"env": [
-					{ "name": "HTDIGEST", "value": htpass }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [cmd]
-			}
-}
-
 function createVolumeClaim(details) {
 	return {
 		"kind": "PersistentVolumeClaim",
@@ -550,93 +173,6 @@ function createVolumeClaim(details) {
 			}
 		}
 	}
-}
-
-function createNativeStorageContainer(details) {
-
-	const container =  {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-sshfs:v0.1",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": details.containerPort
-					}
-				],
-				"env": [
-					{ "name": "STORAGE_NAME", "value": details.name },
-					{ "name": "NAME", "value": details.name }
-				],
-				"volumeMounts": [
-					{ "name": "shared-data", "mountPath": "/shared-data" },
-					{ "name": details.volumeClaim.name, "mountPath": "/data" }
-				],
-				"command": ["/bin/sh", "-c" ],
-				"args": [ "/bin/mkdir -p /shared-data/$STORAGE_NAME && cd /root/fileagent && node fileagent /data/ /shared-data/ " + details.containerPort ]
-	}
-
-	// TODO fic rook and remove
-	if (disableRook) {
-		container.volumeMounts.splice(-1,1)
-	}
-
-	return container
-}
-
-function createSshStorageContainer(details) {
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-sshfs:v0.1",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": details.containerPort
-					}
-				],
-				"env": [
-					{ "name": "SSH_USER", "value": details.sshUser },
-					{ "name": "SSH_HOST", "value": details.sshHost },
-					{ "name": "SSH_PORT", "value": details.sshPort },
-					{ "name": "SSH_PATH", "value": details.sshPath },
-					{ "name": "NAME", "value": details.name }
-
-				],
-				"volumeMounts": [
-					{ "name": "ssh-key", "mountPath": "/ssh", "readOnly": true },
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"securityContext": {
-					"privileged": true,
-						"capabilities": {
-							"add": [ "SYS_ADMIN" ]
-						}
-				},
-				"command": ["/bin/sh", "-c" ],
-				"args": [ "/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600 /root/.ssh/id_rsa && ssh  -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST ls && sshfs $SSH_USER@$SSH_HOST:$SSH_PATH /data && /bin/mkdir -p /shared-data/$SSH_HOST && cd /root/fileagent && node fileagent /data/ /shared-data/$SSH_HOST/ " + details.containerPort ]
-			}
-}
-
-function createScpContainer(details) {
-	return {
-				"name": dockerNames.getRandomName().replace('_','-'),
-				"image": "recap/process-scp2scp:v0.1",
-				"imagePullPolicy": "Always",
-				"ports": [
-					{
-						"containerPort": details.containerPort
-					}
-				],
-				"env": [
-					{ "name": "NAME", "value": details.name }
-
-				],
-				"volumeMounts": [
-					{ "name": "ssh-key", "mountPath": "/ssh", "readOnly": true },
-					{ "name": "shared-data", "mountPath": "/shared-data" }
-				],
-				"command": ["/bin/sh", "-c" ],
-				"args": [ "/bin/cat /ssh/id_rsa > /root/.ssh/id_rsa && /bin/cat /ssh/id_rsa.pub > /root/.ssh/id_rsa.pub  && /bin/chmod 600 /root/.ssh/id_rsa && cd /root/app && node app.js --adaptorId scp:" + details.name +" --sshPrivateKey /root/.ssh/id_rsa -p " + details.containerPort + " "]
-			}
 }
 
 function createVolume(details) {
@@ -719,33 +255,6 @@ function createService(details) {
 		}
 	}
 }
-
-function createPod(details, containers) {
-	return {
-		"kind": "Pod",
-		"apiVersion": "v1",
-		"metadata": {
-			"name": "mi" + randomstring.generate(5).toLowerCase(),
-			"namespace": details.namespace
-		},
-		"spec":{
-			"volumes": [
-				{
-					"name": "ssh-key",
-					"secret": {
-						"secretName": "keys"
-					}
-				},
-				{
-					"name": "shared-data",
-					"emptyDir": {}
-				}
-			],
-		"containers": containers
-		}
-	}
-}
-
 
 function generateToken(user, namespace) {
 	return jwt.sign({
@@ -1027,8 +536,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 
 	const sshContainers = await Promise.all(sshPromises)
 
-	// create logic containers
-	const lgPromises = infra.logicContainers.map(async(c, index) => {
+	async function processContainers(c, index) {
 		if(!moduleHolder[c.type]) {
 			console.log("[ERROR] " + c.type + " not found.")
 			return
@@ -1049,32 +557,14 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 			services.push(s)
 		}
 		return u
-	})
+	}
+
+	// create logic containers
+	const lgPromises = infra.logicContainers.map(processContainers)
 	const lgContainers = await Promise.all(lgPromises)
 	
 	// create init containers
-	const initPromises = infra.initContainers.map(async(c, index) => {
-		if(!moduleHolder[c.type]) {
-			console.log("[ERROR] " + c.type + " not found.")
-			return
-		}
-		c.adaptors = sshContainers
-		c.descriptions = adaptorDescriptions
-		c.user = req.user
-		c.containerPort = c.port ||  getNextPort()
-		const u = moduleHolder[c.type](c)
-		if(c.service) {
-			const s = createService({
-				name: infra.name + '-' + c.type,
-				iname: infra.name,
-				namespace: req.user.namespace,
-				targetPort: c.service.targetPort,
-				type: c.type
-			})
-			services.push(s)
-		}
-		return u
-	})
+	const initPromises = infra.initContainers.map(processContainers)
 	const initContainers = await Promise.all(initPromises)
 
 	const containers = sshContainers.concat(lgContainers)
