@@ -21,7 +21,6 @@ const keypair = require('keypair')
 const forge = require('node-forge')
 const dockerNames = require('docker-names')
 const md5 = require('md5')
-const jupyter = require('./jupyter')
 const path_module = require('path');
 const eventEmitter = new events.EventEmitter()
 const moduleHolder = {};
@@ -656,7 +655,7 @@ function createVolume(details) {
     ]
 }
 
-function createDeployment(details, volumes, containers) {
+function createDeployment(details, volumes, containers, initContainers) {
 	return {
 		kind: "Deployment",
 		apiVersion: "apps/v1",
@@ -685,7 +684,8 @@ function createDeployment(details, volumes, containers) {
 					},
 					hostname: details.name,
 					volumes: volumes,
-					containers: containers
+					containers: containers,
+					initContainers: initContainers
 				  }
 				}
 		}
@@ -1051,6 +1051,31 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		return u
 	})
 	const lgContainers = await Promise.all(lgPromises)
+	
+	// create init containers
+	const initPromises = infra.initContainers.map(async(c, index) => {
+		if(!moduleHolder[c.type]) {
+			console.log("[ERROR] " + c.type + " not found.")
+			return
+		}
+		c.adaptors = sshContainers
+		c.descriptions = adaptorDescriptions
+		c.user = req.user
+		c.containerPort = c.port ||  getNextPort()
+		const u = moduleHolder[c.type](c)
+		if(c.service) {
+			const s = createService({
+				name: infra.name + '-' + c.type,
+				iname: infra.name,
+				namespace: req.user.namespace,
+				targetPort: c.service.targetPort,
+				type: c.type
+			})
+			services.push(s)
+		}
+		return u
+	})
+	const initContainers = await Promise.all(initPromises)
 
 	const containers = sshContainers.concat(lgContainers)
 
@@ -1059,7 +1084,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		name: infra.name,
 		namespace: req.user.namespace,
 		location: infra.location
-	}, volumes, containers)
+	}, volumes, containers, initContainers)
 
 	let yml = ""
 	services.forEach(s => {
