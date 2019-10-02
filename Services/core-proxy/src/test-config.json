@@ -1,0 +1,23 @@
+[
+  {
+    "name": "data03.process-project.eu",
+    "host": "localhost",
+    "port": 3002,
+    "type": "webdav",
+    "mount": "/mnt/dss/process/UC1"
+  },
+  {
+    "name": "pro.cyfronet.pl",
+    "host": "localhost",
+    "port": 3003,
+    "type": "webdav",
+    "mount": "/net/archive/groups/plggprocess/UC1"
+  },
+  {
+    "name": "lisa.surfsara.nl",
+    "host": "localhost",
+    "port": 3004,
+    "type": "webdav",
+    "mount": "/nfs/scratch/cushing/UC1"
+  }
+]

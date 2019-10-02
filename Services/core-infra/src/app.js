@@ -7,7 +7,6 @@ const app = express()
 const http = require('http')
 const https = require('https')
 const bodyParser = require('body-parser')
-//const io = require('socket.io')(server)
 const mongoose = require('mongoose')
 const randomstring = require('randomstring')
 const jwt = require('jsonwebtoken')
@@ -31,8 +30,6 @@ const cmdOptions = [
 ]
 
 const options = cmdArgs(cmdOptions)
-// TODO fix rook ceph storage
-const disableRook = true
 
 // load keys
 const privateKey = fs.readFileSync(options.privateKey, "utf-8")
@@ -397,7 +394,6 @@ function checkSshConnection(adaptor) {
 			privateKey: adaptor.keys.private
 		})
 	})
-
 }
 
 function copySshId(adaptor) {
@@ -474,9 +470,7 @@ app.delete(api + '/infrastructure/:id', checkToken, async(req, res) => {
 	kubeapi.delete('namespaces/' + req.user.namespace + '/services/' + id, (err, res) => {
 		if (err) console.log(err)
 	})
-
 	res.status(200).send()
-
 })
 
 const getNextPort = function() {
@@ -597,7 +591,6 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 	res.status(200).send(YAML.parseAllDocuments(yml))
 })
 
-
 function deploy(desc) {
 	const yamlFile = 'deployments/' + req.user.namespace + "." + infra.name + '.yaml'
 	fs.writeFileSync(yamlFile, desc, 'utf-8')
@@ -643,21 +636,6 @@ async function startMq() {
 	})
 }
 
-/*io.on('connection', function(client) {
-    console.log('Client connected...')
-
-    client.on('join', function(data) {
-	        console.log(data)
-	})
-
-	eventEmitter.on('audit_log', (msg) => {
-		const parts = msg.content.toString().split('.')
-		const content = new Buffer(parts[0], 'base64').toString()
-		console.log(content + " Signiture: " + parts[1])
-		client.emit('audit_log', content)
-	})
-})*/
-
 function generateKeys(user) {
 	return new Promise((resolve, reject) => {
 		const pair = keypair();
@@ -679,14 +657,18 @@ function generateKeys(user) {
 	})
 }
 
-//startMq()
-//checkMongo()
-//const myToken = generateToken("admin")
+// load container handlers
 loadModules('./containers')
 watchModules('./containers')
+
+// generate debug token
 const myToken = generateToken("r.s.cushing@uva.nl", "cushing-001")
 console.log(myToken)
+
+// start HTTPS server
 //console.log("Starting secure server...")
 //httpsServer.listen(options.port || 4243)
+
+// start HTTP server
 console.log("Starting server...")
 httpServer.listen(options.port || 4200)
