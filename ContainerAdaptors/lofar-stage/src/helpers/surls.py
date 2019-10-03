@@ -1,4 +1,7 @@
-def get_surls(observation_id):
+def get_surls(observation_id, username, password):
+    from common.config.Profile import profiles
+    profile = profiles.create_profile(username, password)
+
     from awlofar.database.Context import context
     from common.config.Profile import profiles
     from common.database.Database import database
@@ -9,7 +12,7 @@ def get_surls(observation_id):
     if not database.connected():
         profile = profiles.get_current_profile()
         if profile is None:
-            profile = profiles.create_profile()
+            profile = profiles.create_profile(username, password)
         
         database.connect()
 

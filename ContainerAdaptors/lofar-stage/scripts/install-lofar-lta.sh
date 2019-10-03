@@ -3,6 +3,9 @@
 INSTANTCLIENT="/etc/ld.so.conf.d/oracle-instantclient.conf"
 LIBRARY="lofar_lta-2.7.1"
 
+# Install dependencies (libaio)
+apt-get -qq update && apt-get -qq install -y libaio1 && rm -rf /var/lib/apt/lists/*
+
 # Download and extract
 curl http://www.astro-wise.org/losoft/$LIBRARY.tar.gz | tar xz && cd $LIBRARY
 

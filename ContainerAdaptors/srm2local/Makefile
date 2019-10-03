@@ -1,12 +1,11 @@
-.PHONY: all
+.PHONY: build
 
 build:
-	docker build -t srm2scp .
+	docker build -t recap/process-srm2local-adaptor .
 
 run: build
-	-docker stop srm2scp
-	docker run -t --name srm2scp -d -p 8001:5001 --rm srm2scp
-	docker ps
-#	docker run -it lofar-staging # sh
+	docker run -dt --rm -P recap/process-srm2local-adaptor
 
-# docker run -t and in Dockerfile python -u flags added so that print statements end up in docker log
+push: build
+	docker push recap/process-srm2local-adaptor
+
