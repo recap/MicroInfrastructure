@@ -1,88 +1,78 @@
-from background import StagingMonitor
+from json import dumps, loads
+from os import environ
+from threading import Thread
+
 from flask import Flask, request
-from helpers import get_ltaproxy, get_surls, json_respone
-from json import dumps
+from pika import BlockingConnection, ConnectionParameters
+
+from helpers import json_respone
+from lofar import stage_entrypoint, status_entrypoint
+
+### Config
+
+amqp_host = environ['AMQP_HOST']
+amqp_exchange = 'function_proxy'
+amqp_routingkey = 'functions.lofar.*'
+
+### Shared Entrypoints (Pika/Flask) 
+
+functions = {
+    'status': status_entrypoint,
+    'stage': stage_entrypoint
+}
+
+### Pika
+
+connection = BlockingConnection(ConnectionParameters(host=amqp_host))
+channel = connection.channel()
+channel.exchange_declare(amqp_exchange, 'topic')
+
+result = channel.queue_declare(queue='', exclusive=True)
+queue = result.method.queue
+channel.queue_bind(queue, amqp_exchange, amqp_routingkey)
+
+def callback(_ch, method, properties, message):
+    print(f'Incoming AMQP message: {message}.')
+
+    message = loads(message)
+    function_name = method.routing_key.split('.')[-1]
+
+    function = functions[function_name]
+    result, status = function(message['body'])
+
+    # Reply to sender over message queue
+    reply = dumps({
+        'id': message['id'],
+        'status': status,
+        'body': result,
+    })
+    channel.basic_publish(amqp_exchange, message['replyTo'], reply)
+
+channel.basic_consume(queue, callback, auto_ack=True)
+
+### Flask
 
 app = Flask(__name__)
-
-@app.route('/')
-def index():
-    return json_respone({}, 200)
 
 @app.route('/status', methods=['POST'])
 def status():
     payload = request.get_json()
-    command = payload['cmd']
+    result, status = functions.get('status')(payload)
 
-    # Validate payload
-    sid = command['requestId']
-
-    # Extract credentials
-    lofar_username = command['credentials']['lofarUsername']
-    lofar_password = command['credentials']['lofarPassword']
-
-    lta_proxy = get_ltaproxy(lofar_username, lofar_password)
-
-    # Get progress
-    progress = lta_proxy.LtaStager.getprogress()
-    if progress is None:
-        return json_respone({}, 200)
-
-    srequest = progress.get(str(sid))
-    if request is None:
-        return json_respone({}, 200)
-
-    return json_respone({str(sid): srequest}, 200)
+    return json_respone(result, status)
 
 
 @app.route('/stage', methods=['POST'])
 def stage():
     payload = request.get_json()
-    identifier = payload['id']
-    command = payload['cmd']
-    
-    # Validate payload
-    stype = command['subtype']
-    if stype != 'lofar':
-        return json_respone({'error': 'Provided subtype is not LOFAR.'}, 400)
+    result, status = functions.get('stage')(payload)
 
-    # Extract credentials
-    lofar_username = command['credentials']['lofarUsername']
-    lofar_password = command['credentials']['lofarPassword']
+    return json_respone(result, status)
 
-    # Request staging
-    try:
-        src = command['src']
-        sid = src.get('id')
-        paths = src.get('paths')
-
-        if sid is not None and (type(sid) is int or sid.isdigit()):
-            surls = get_surls(int(sid), lofar_username, lofar_password)
-        elif paths is not None and type(paths) is list:
-            surls = paths
-        else:
-            return json_respone({'error': 'Could not determine source files (surls)'}, 400)
-
-        lta_proxy = get_ltaproxy(lofar_username, lofar_password)
-        rid = lta_proxy.LtaStager.add_getid(surls)
-    except:
-        message = 'Could not find data products: credentials not valid? unsupported observation type?'
-        return json_respone({'id': identifier, 'message': message}, 400)
-    
-    # Prepare webhook/callback
-    webhook = payload.get('webhook', None)
-    if webhook is not None:
-        webhook['payload'] = {
-            'id': identifier,
-            'requestId': rid,
-            'surls': surls
-        }
-
-    # Monitor staging
-    monitor = StagingMonitor(rid, 30, lta_proxy, webhook)
-    monitor.start()
-
-    return json_respone({'id': identifier, 'requestId': rid}, 200)
+### Main
 
 if __name__ == '__main__':
+    # Listen for AMQP messages in the background
+    Thread(target=channel.start_consuming).start()
+
     app.run(host='0.0.0.0', threaded=True)

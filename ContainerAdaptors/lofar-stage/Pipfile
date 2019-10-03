@@ -10,6 +10,7 @@ flask = "*"
 grid-lrt = "*"
 requests = "*"
 loguru = "*"
+pika = "*"
 
 [requires]
 python_version = "3.7"
