@@ -1,12 +1,11 @@
-.PHONY: all
+.PHONY: build
 
 build:
-	docker build -t lofar-staging .
+	docker build -t recap/process-lofar-adaptor .
 
 run: build
-	-docker stop lofar-staging
-	docker run -t --name lofar-staging -d -p 8002:5000 --rm lofar-staging
-	docker ps
-#	docker run -it lofar-staging # sh
+	docker run -dt --rm -P recap/process-lofar-adaptor
 
-# docker run -t and in Dockerfile python -u flags added so that print statements end up in docker log
+push: build
+	docker push recap/process-lofar-adaptor
+
