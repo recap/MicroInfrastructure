@@ -539,7 +539,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				name: infra.name + '-' + c.type,
 				iname: infra.name,
 				namespace: req.user.namespace,
-				targetPort: c.service.targetPort,
+				targetPort: c.containerPort || c.service.targetPort,
 				type: c.type
 			})
 			services.push(s)

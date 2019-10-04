@@ -187,7 +187,7 @@ app.post(api + '/function/:module/:func', async (req, res) => {
 		}
 	}
 	const publish = await getChannel()
-	publish(moduleName + '.' + funcName, JSON.stringify(rpc))
+	publish('_.' + moduleName + '.' + funcName, JSON.stringify(rpc))
 	res.status(200).send({
 		id: id		
 	})

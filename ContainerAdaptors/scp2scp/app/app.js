@@ -17,36 +17,33 @@ const redis = require('redis')
 const ssh = require('ssh2').Client
 const PersistentObject = require('persistent-cache-object')
 const kue = require('kue')
+const amqp = require('amqplib')
 const eventEmitter = new events.EventEmitter()
 
 const cmdOptions = [
 	{ name: 'port', alias: 'p', type: Number},
-	{ name: 'adaptorId', type: String },
 	{ name: 'redis', type: String },
+	{ name: 'users', alias: 'u', type: String},
+	{ name: 'amqp', type: String },
 	{ name: 'sshPrivateKey', type: String }
 ]
 
 const options = cmdArgs(cmdOptions)
-if (!options.adaptorId) throw('adaptorId not set e.g. scp:data03.process-project.eu')
-console.log(options.sshPrivateKey)
-const interfaces = os.networkInterfaces();
-const addresses = ['127.0.0.1'];
-for (const k in interfaces) {
-    for (const k2 in interfaces[k]) {
-        const address = interfaces[k][k2];
-        if (address.family === 'IPv4' && !address.internal) {
-            addresses.push(address.address);
-        }
-    }
-}
+
+// list of user's public keys allowed to access the service. Used to check JWT signitature 
+const users = (options.users) ? require(options.users) : {}
+Object.keys(users).forEach(k => {
+	const u = users[k]
+	u.decodedPublicKey = decodeBase64(u.publicKey)
+})
+
 const api = '/api/v1'
 const serverPort = options.port || 4300
+const amqpHost = options.amqp || 'localhost'
 const redisHost = (options.redis) ? options.redis.split(':')[0] : '127.0.0.1'
 const redisPort = (options.redis) ? (options.redis.split(':')[1] || 6379) : 6379
-const client = redis.createClient({
-	host: redisHost,
-	port: redisPort
-})
+
+// create job queue on redis
 const queue = kue.createQueue({
 	prefix: 'q',
 	redis: {
@@ -54,23 +51,47 @@ const queue = kue.createQueue({
 		port: redisPort
 	}
 })
-client.hmset(options.adaptorId, ['ips', addresses, 'url', 'http://#IPIP#:' + serverPort + '/api/v1/copy', 'timestamp', new Date().toISOString()])
-client.hgetall(options.adaptorId, (err, reply) => {
-	if (err) console.log(err)
-	console.log(reply.url)
-})
-client.hmget(options.adaptorId, 'ips', (err, reply) => {
-	if (err) console.log(err)
-	console.log(reply)
-})
-const httpServer = http.createServer(app)
 
+// create REST service
+const httpServer = http.createServer(app)
 app.use(bodyParser.urlencoded({extended: true}))
 app.use(bodyParser.json())
 app.use(express.static('./'))
 app.get('/', function(req, res,next) {
     res.sendFile(__dirname + '/index.html')
 })
+
+// setup mq consumer
+const consumerHandler = function() {
+	let channel = null
+	return async function(func) {
+		if(channel) return new Promise((resolve, reject) => {
+			resolve(channel)
+		})
+		return new Promise((resolve, reject) => {
+			amqp.connect('amqp://' + amqpHost).then(conn => {
+				conn.createChannel().then(function(ch) {
+					const ex = 'function_proxy'
+					ch.assertExchange(ex, 'topic', {durable: false})
+					.then(() => {
+						ch.assertQueue('', {
+							exclusive: true
+						})
+						.then((q) => {
+							ch.bindQueue(q.queue, ex, 'functions.' + func)
+							
+							channel = function(f) {
+								ch.consume(q.queue, f)
+							}
+							resolve(channel)
+							})
+					})
+				})
+			})
+		})
+	}
+}()
+
 
 function encodeBase64(s) {
 	return new Buffer(s).toString('base64')
@@ -89,11 +110,60 @@ function isHiddenFile(filename) {
 	return path.basename(filename).startsWith('.')
 }
 
+function checkToken(req, res, next) {
+	if (req.user) {
+		next()
+		return
+	}
+	const token = req.headers['x-access-token']
+	if (!token) {
+		res.status(403).send()
+		return
+	}
+	const preDecoded = jwt.decode(token)
+	if (!preDecoded) {
+		res.status(403).send()
+	}
+	const user = preDecoded.email || preDecoded.user
+	if(!users[user]) {
+		res.status(403).send()
+	}
+
+	const cert = users[user].decodedPublicKey
+	if (!cert) {
+		res.status(403).send()
+	}
+
+	jwt.verify(token, cert, {algorithms: ['RS256']}, (err, decoded) => {
+		if (err) {
+			console.log(err)
+			res.status(403).send()
+			return
+		}
+		req['user'] = decoded.email
+		next()
+	})
+}
+
+consumerHandler('*.scp2scp.copy').then(ch => {
+	ch(msg => {
+		const msgBody = JSON.parse(msg.content.toString())
+		const copyReq = msgBody.body
+		console.log(copyReq.cmd.type)
+		queue.create('copy', copyReq).save(err => {
+			if (err) {
+				console.log(err)
+				return
+			}
+			// send reply over msgq
+		})
+
+	})
+})
+
 // api urls
-app.post(api + '/copy', async (req, res) => {
+app.post(api + '/copy', checkToken, async (req, res) => {
 	const copyReq = req.body
-	const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-	console.log('IPIP: ' + ip)
 	if (copyReq.cmd.type == 'copy') {
 		queue.create('copy', copyReq).save(err => {
 			if (err) {
@@ -112,7 +182,6 @@ app.post(api + '/copy', async (req, res) => {
 })
 
 function sshCopy(src, dst) {
-
 	return new Promise((resolve, reject) => {
 		const conn = new ssh()
 		conn.on('error', (err) => {
@@ -164,20 +233,17 @@ queue.process('copy', async (job, done) => {
 	if (type == 'scp2scp') {
 		const j = await(sshCopy(job.data.cmd.src, job.data.cmd.dst, null))
 		console.log(j)
-		console.log("JOB: " + JSON.stringify(job))
-		if (job.data.callback) {
-			const cb = job.data.callback
-			for (i = 0; i < cb.addresses.length; i++) {
-				try {
-					const url = 'http://' + cb.addresses[i] + ':' + cb.port + cb.path + job.data.id
-					console.log('trying ' + url)
-					await rp.post(url, {json: { 
-						id: job.data.id,
-						status: 'done',
-						details: job.data
-					}})
-					break
-				} catch(err) {}
+		const wh = job.data.cmd.webhook
+		if (wh) {
+			try{
+				console.log("calling webhook")
+				await rp.post(wh.url, {json: {
+					id: job.data.id,
+					status: 'done',
+					details: job.data
+				}})
+			} catch(err) {
+				console.log(err)
 			}
 		}
 	}
@@ -186,8 +252,7 @@ queue.process('copy', async (job, done) => {
 })
 
 queue.on('job enqueue', function(id, type){
-  console.log( 'Job %s got queued of type %s', id, type );
-
+	console.log( 'Job %s got queued of type %s', id, type );
 }).on('job complete', function(id, result){
   kue.Job.get(id, function(err, job){
     if (err) return
@@ -211,3 +276,4 @@ function verifyJob(job) {
 
 console.log("Starting server...")
 httpServer.listen(options.port || 4300)
+
