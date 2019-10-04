@@ -45,3 +45,13 @@ Use the following request payload:
     }
 }
 ```
+
+In case of AMQP, wrap the payload in the following JSON:
+
+```json
+{
+    "id": "...",
+    "replyTo": "...",
+    "body": "<payload>"
+}
+```

@@ -11,7 +11,7 @@ def status_entrypoint(payload):
     password = command['credentials']['lofarPassword']
 
     # Get status
-    result = get_staging_status(username, password, request_id)
+    result = get_staging_status(username, password, str(request_id))
     return (result, 200)
 
 
@@ -48,13 +48,15 @@ def stage_entrypoint(payload):
 
 def new_staging_request(username, password, target, webhook):
     try:
-        if (type(target) is int or target.isdigit()):
+        if type(target) is int or target.isdigit():
             surls = get_surls(int(target), username, password)
         elif type(target) is list:
             surls = target
     except:
         message = 'Could not find data products: credentials not valid? unsupported observation type?'
         return {'message': message}
+
+    print(surls)
 
     lta_proxy = get_ltaproxy(username, password)
     request_id = lta_proxy.LtaStager.add_getid(surls)

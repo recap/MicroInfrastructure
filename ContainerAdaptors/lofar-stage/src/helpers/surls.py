@@ -16,13 +16,14 @@ def get_surls(observation_id, username, password):
         
         database.connect()
 
-    cls = CorrelatedDataProduct
+    cdp = CorrelatedDataProduct
 
     query_observations = Observation.observationId == observation_id
     surls = []
     for observation in query_observations:
-        dataproduct_query = cls.observations.contains(observation)
-        dataproduct_query &= cls.isValid == 1
+        dataproduct_query = cdp.observations.contains(observation)
+        dataproduct_query &= cdp.isValid == 1
+        
         for dataproduct in dataproduct_query:
             fileobject = ((FileObject.data_object == dataproduct) & (FileObject.isValid > 0)).max('creation_date')
             if fileobject:

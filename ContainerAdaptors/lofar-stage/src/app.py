@@ -23,32 +23,33 @@ functions = {
 
 ### Pika
 
-connection = BlockingConnection(ConnectionParameters(host=amqp_host))
-channel = connection.channel()
-channel.exchange_declare(amqp_exchange, 'topic')
+if amqp_host != '':
+    connection = BlockingConnection(ConnectionParameters(host=amqp_host))
+    channel = connection.channel()
+    channel.exchange_declare(amqp_exchange, 'topic')
 
-result = channel.queue_declare(queue='', exclusive=True)
-queue = result.method.queue
-channel.queue_bind(queue, amqp_exchange, amqp_routingkey)
+    result = channel.queue_declare(queue='', exclusive=True)
+    queue = result.method.queue
+    channel.queue_bind(queue, amqp_exchange, amqp_routingkey)
 
-def callback(_ch, method, properties, message):
-    print(f'Incoming AMQP message: {message}.')
+    def callback(_ch, method, properties, message):
+        print(f'Incoming AMQP message: {message}.')
 
-    message = loads(message)
-    function_name = method.routing_key.split('.')[-1]
+        message = loads(message)
+        function_name = method.routing_key.split('.')[-1]
 
-    function = functions[function_name]
-    result, status = function(message['body'])
+        function = functions[function_name]
+        result, status = function(message['body'])
 
-    # Reply to sender over message queue
-    reply = dumps({
-        'id': message['id'],
-        'status': status,
-        'body': result,
-    })
-    channel.basic_publish(amqp_exchange, message['replyTo'], reply)
+        # Reply to sender over message queue
+        reply = dumps({
+            'id': message['id'],
+            'status': status,
+            'body': result,
+        })
+        channel.basic_publish(amqp_exchange, message['replyTo'], reply)
 
-channel.basic_consume(queue, callback, auto_ack=True)
+    channel.basic_consume(queue, callback, auto_ack=True)
 
 ### Flask
 
@@ -72,7 +73,8 @@ def stage():
 ### Main
 
 if __name__ == '__main__':
-    # Listen for AMQP messages in the background
-    Thread(target=channel.start_consuming).start()
+    if amqp_host != '':
+        # Listen for AMQP messages in the background
+        Thread(target=channel.start_consuming).start()
 
     app.run(host='0.0.0.0', threaded=True)
