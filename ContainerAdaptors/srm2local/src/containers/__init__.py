@@ -1,1 +1,0 @@
-from containers.srm2hpc import Srm2Hpc

@@ -1,35 +1,66 @@
-from containers import Srm2Local
 from flask import Flask, request
+
 from helpers import json_respone
+from srm2local import execute_entrypoint
+
+### Config
+
+amqp_host = environ['AMQP_HOST']
+amqp_exchange = 'function_proxy'
+amqp_routingkey = 'functions.srm2local.*'
+
+### Shared Entrypoints (Pika/Flask) 
+
+functions = {
+    'execute': execute_entrypoint,
+}
+
+### Pika
+
+if amqp_host != '':
+    connection = BlockingConnection(ConnectionParameters(host=amqp_host))
+    channel = connection.channel()
+    channel.exchange_declare(amqp_exchange, 'topic')
+
+    result = channel.queue_declare(queue='', exclusive=True)
+    queue = result.method.queue
+    channel.queue_bind(queue, amqp_exchange, amqp_routingkey)
+
+    def callback(_ch, method, properties, message):
+        print(f'Incoming AMQP message: {message}.')
+
+        message = loads(message)
+        function_name = method.routing_key.split('.')[-1]
+
+        function = functions[function_name]
+        result, status = function(message['body'])
+
+        # Reply to sender over message queue
+        reply = dumps({
+            'id': message['id'],
+            'status': status,
+            'body': result,
+        })
+        channel.basic_publish(amqp_exchange, message['replyTo'], reply)
+
+    channel.basic_consume(queue, callback, auto_ack=True)
+
+### Flask
 
 app = Flask(__name__)
-
-@app.route('/')
-def index():
-    return json_respone({}, 200)
 
 @app.route('/execute', methods=['POST'])
 def execute():
     payload = request.get_json()
+    result, status = functions.get('execute')(payload)
 
-    # Extract payload
-    identifier = payload['id']
-    command = payload['cmd']
-    webhook = payload['webhook']
+    return json_respone(result, status)
 
-    # Determine appropriate container to run
-    if command['type'] == 'copy' and command['subtype'] == 'srm2local':
-        container = Srm2Local(identifier, command, webhook)
-    else:
-        return json_respone({'message': 'Unsupported type/subtype'}, 400)
-
-    # Run container
-    response = container.run()
-
-    return json_respone({
-        'identifier': identifier,
-        'response': response 
-    }, 202)
+### Main
 
 if __name__ == '__main__':
+    if amqp_host != '':
+        # Listen for AMQP messages in the background
+        Thread(target=channel.start_consuming).start()
+
     app.run(host='0.0.0.0', threaded=True)

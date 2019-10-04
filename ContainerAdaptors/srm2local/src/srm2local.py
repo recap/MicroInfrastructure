@@ -1,11 +1,23 @@
 from os.path import basename, join
 from uuid import uuid4
 
-from helpers import base64_dict, base64_str
 from paramiko import AutoAddPolicy, SSHClient
 
+from helpers import base64_dict, base64_str
 
-class Srm2Hpc():
+
+def execute_entrypoint(payload):
+    command = payload['cmd']
+    webhook = payload['webhook']
+
+    # Run container
+    container = Srm2Local(identifier, command, webhook)
+    result = container.run()
+
+    return (result, 202)
+
+
+class Srm2Local():
     
     def __init__(self, identifier, command, webhook):
         self.identifier = identifier
