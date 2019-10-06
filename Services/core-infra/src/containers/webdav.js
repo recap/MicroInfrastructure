@@ -2,7 +2,7 @@ const md5 = require('md5')
 const name = 'webdav'
 function handler(details) {	
 	let cmd = ""
-	const htpass = details.user + ":jsdav:" + md5(details.user + ":jsdav:" + details.pass)
+	const htpass = details.config.user + ":jsdav:" + md5(details.config.user + ":jsdav:" + details.config.pass)
 	if(!details.adaptors) details.adaptors = []
 	details.adaptors.map(a => {
 		const host = a.env.filter(e => {
@@ -16,14 +16,14 @@ function handler(details) {
 		cmd += " echo $HTDIGEST > /assets/htusers && /bin/mkdir -p /data/" + a.host + " && echo \'http://localhost:" + a.port + " u p\' >> /etc/davfs2/secrets && mount -t davfs http://localhost:" + a.port + " /data/" + a.host + " && " 
 	})
 
-	cmd += " cd /root/webdavserver && node webdavserver-ht.js"
+	cmd += " cd /root/webdavserver && node webdavserver-ht.js -p " + details.containerPort
 	return {
 				"name": details.name,
 				"image": "recap/process-webdav:v0.3",
 				"imagePullPolicy": "Always",
 				"ports": [
 					{
-						"containerPort": 8000
+						"containerPort": details.containerPort
 					}
 				],
 				"env": [

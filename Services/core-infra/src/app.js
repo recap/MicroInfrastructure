@@ -1,5 +1,4 @@
 const YAML = require('yaml')
-const amqp = require('amqplib')
 const cmdArgs = require('command-line-args')
 const express = require('express')
 const crypto = require('crypto')
@@ -19,7 +18,6 @@ const path_module = require('path');
 const moduleHolder = {};
 
 const cmdOptions = [
-	{ name: 'amqp', alias: 'q', type: String},
 	{ name: 'mongo', alias: 'm', type: String},
 	{ name: 'privateKey', alias: 'k', type: String},
 	{ name: 'publicKey', alias: 'c', type: String},
@@ -353,6 +351,7 @@ app.put(api + '/user', checkAdminToken, async(req, res) => {
 			} else {
 				keys = results[0].keys
 			}
+
 			// initialize k8s namespace for user
 			kubeapi.post('namespaces', createNamespace(user.namespace), async (err, result) => {
 				if (err) {
@@ -404,10 +403,11 @@ function copySshId(adaptor) {
 			cb()
 		}
 	}
+	console.log("[SSH] connecting", adaptor)
 	return new Promise((resolve, reject) => {
 		const conn = new ssh()
 		conn.on('error', (err) => {
-			console.log("[SSH] ERRROR: " + err)
+			console.log("[SSH] ERRROR [" + adaptor.host + "]: "  + err)
 			reject(err)
 		})
 		conn.on('ready', () => {
@@ -495,7 +495,17 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		adaptor.keys = req.user.keys.ssh
 		// create ssh keys
 		if(!(await checkSshConnection(adaptor))) {
-			await copySshId(adaptor)
+			try {
+				await copySshId(adaptor)
+			}catch(err) {
+				const e = {
+					host: adaptor.host,
+					name: adaptor.name,
+					error: err
+				}
+				res.status(500).send(e)
+				return
+			}
 		} else {
 			console.log("[SSH] key already present: " + adaptor.host)
 		}
@@ -532,6 +542,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 		c.adaptors = sshContainers
 		c.descriptions = adaptorDescriptions
 		c.user = req.user
+		c.env = c.env || {}
 		c.containerPort = c.port ||  getNextPort()
 		const u = moduleHolder[c.type](c)
 		if(c.service) {
@@ -539,7 +550,7 @@ app.post(api + '/infrastructure', checkToken, async(req, res) => {
 				name: infra.name + '-' + c.type,
 				iname: infra.name,
 				namespace: req.user.namespace,
-				targetPort: c.containerPort || c.service.targetPort,
+				targetPort: c.service.targetPort || c.containerPort,
 				type: c.type
 			})
 			services.push(s)
@@ -612,27 +623,6 @@ async function checkMongo() {
 	db.on('error', console.error.bind(console, "conn error"))
 	db.once('open', () => {
 		console.log('connected')
-	})
-}
-
-async function startMq() {
-	const conn = await amqp.connect('amqp://' + options.amqp)
-	const mq = await conn.createChannel()
-	const q = await mq.assertQueue(null, {
-		autoDelete: true
-	})
-
-	const rk = 'audit.transactions.*'
-	const ex = 'audit'
-	mq.assertExchange('audit', 'topic', {durable: false})
-	mq.assertExchange('log', 'topic', {durable: false})
-	console.log("Binding queue " + q.queue + " to rk: " + rk)
-	await mq.bindQueue(q.queue, ex, rk)
-	console.log("Binding queue " + l.queue + " to rk: log.*")
-	await mq.bindQueue(l.queue, 'log', 'log.info.*')
-
-	mq.consume(q.queue, (msg) => {
-		eventEmitter.emit('audit_log', msg)
 	})
 }
 

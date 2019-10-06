@@ -11,15 +11,15 @@ function handler(details) {
 		}
 	}
 	const users = encodeBase64(JSON.stringify(user))
-	let cmd = "sleep 10 && node app.js --amqp 127.0.0.1 -p 8003"
+	let cmd = "sleep 15 && node app.js --amqp 127.0.0.1 -p " + details.containerPort
 	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
-	return {
+	const o = {
 				"name": details.name,
 				"image": "recap/process-core-proxy:v0.1",
 				"imagePullPolicy": "Always",
 				"ports": [
 					{
-						"containerPort": 4300
+						"containerPort": details.containerPort
 					}
 				],
 				"env": [
@@ -32,6 +32,12 @@ function handler(details) {
 				"command": ["/bin/sh", "-c" ],
 				"args": [cmd]
 			}
+	if (details.env) {
+		Object.keys(details.env).forEach(k => {
+			o.env[k] = details.env[k]
+		})
+	}
+	return o
 }
 
 module.exports = function(moduleHolder) {

@@ -10,16 +10,17 @@ function handler(details) {
 			'publicKey': encodeBase64(details.user.keys.raw.public)
 		}
 	}
+	
 	const users = encodeBase64(JSON.stringify(user))
-	let cmd = "sleep 10 && /scripts/entrypoint.sh"
+	let cmd = "sleep 15 && python src/app.py"
 	const appConfig = encodeBase64(JSON.stringify(details.descriptions))
-	return {
+	const o = {
 				"name": details.name,
-				"image": "recap/adaptor-lofarstage:v0.1",
+				"image": "recap/adaptor-lofar-stage",
 				"imagePullPolicy": "Always",
 				"ports": [
 					{
-						"containerPort": 4300
+						"containerPort": details.containerPort
 					}
 				],
 				"env": [
@@ -32,6 +33,14 @@ function handler(details) {
 				"command": ["/bin/sh", "-c" ],
 				"args": [cmd]
 			}
+	// pass env variables
+	if (details.env) {
+		Object.keys(details.env).forEach(k => {
+			o.env[k] = details.env[k]
+		})
+	}
+	return o
+
 }
 
 module.exports = function(moduleHolder) {
